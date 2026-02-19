@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BA Copilot — MVP</title>
+    <style>
+        /* ── Reset & Base ── */
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: #0a1628;
+            color: #e8f0f8;
+            min-height: 100vh;
+        }
+
+        /* ── Header ── */
+        header {
+            background: #0f2040;
+            border-bottom: 3px solid #d4a017;
+            padding: 20px 40px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        header h1 {
+            font-size: 24px;
+            color: #d4a017;
+            font-weight: 700;
+        }
+
+        header p {
+            font-size: 13px;
+            color: #7a9bbe;
+            margin-top: 2px;
+        }
+
+        .badge {
+            background: #d4a017;
+            color: #0a1628;
+            font-size: 11px;
+            font-weight: 700;
+            padding: 3px 10px;
+            border-radius: 20px;
+            margin-left: auto;
+        }
+
+        /* ── Main Layout ── */
+        .container {
+            max-width: 1100px;
+            margin: 40px auto;
+            padding: 0 24px;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 28px;
+        }
+
+        /* ── Cards ── */
+        .card {
+            background: #0f2040;
+            border-radius: 12px;
+            padding: 28px;
+            border: 1px solid #162b50;
+        }
+
+        .card h2 {
+            font-size: 14px;
+            font-weight: 700;
+            color: #d4a017;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 16px;
+        }
+
+        /* ── Input Area ── */
+        textarea {
+            width: 100%;
+            height: 220px;
+            background: #0a1628;
+            border: 1px solid #162b50;
+            border-radius: 8px;
+            color: #e8f0f8;
+            font-size: 14px;
+            padding: 16px;
+            resize: vertical;
+            font-family: inherit;
+            line-height: 1.6;
+            transition: border-color 0.2s;
+        }
+
+        textarea:focus {
+            outline: none;
+            border-color: #d4a017;
+        }
+
+        textarea::placeholder { color: #3a5470; }
+
+        /* ── Button ── */
+        button {
+            width: 100%;
+            margin-top: 16px;
+            padding: 14px;
+            background: #d4a017;
+            color: #0a1628;
+            border: none;
+            border-radius: 8px;
+            font-size: 15px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: background 0.2s, transform 0.1s;
+        }
+
+        button:hover  { background: #f0c040; }
+        button:active { transform: scale(0.98); }
+
+        button:disabled {
+            background: #3a5470;
+            color: #7a9bbe;
+            cursor: not-allowed;
+        }
+
+        /* ── Status Bar ── */
+        .status {
+            margin-top: 14px;
+            padding: 10px 14px;
+            border-radius: 8px;
+            font-size: 13px;
+            display: none;
+        }
+
+        .status.loading {
+            display: block;
+            background: #162b50;
+            color: #7a9bbe;
+            border: 1px solid #162b50;
+        }
+
+        .status.error {
+            display: block;
+            background: #2d0a0a;
+            color: #f87171;
+            border: 1px solid #dc2626;
+        }
+
+        .status.success {
+            display: block;
+            background: #0a2d0a;
+            color: #86efac;
+            border: 1px solid #16a34a;
+        }
+
+        /* ── Spinner ── */
+        .spinner {
+            display: inline-block;
+            width: 14px;
+            height: 14px;
+            border: 2px solid #3a5470;
+            border-top-color: #d4a017;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin-right: 8px;
+            vertical-align: middle;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* ── Output Area ── */
+        .output-box {
+            background: #0a1628;
+            border: 1px solid #162b50;
+            border-radius: 8px;
+            padding: 20px;
+            height: 520px;
+            overflow-y: auto;
+            font-size: 13.5px;
+            line-height: 1.7;
+            white-space: pre-wrap;
+            color: #c8d8e8;
+        }
+
+        .output-box.empty {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #3a5470;
+            font-size: 14px;
+        }
+
+        /* ── Markdown-style formatting ── */
+        .output-box .section-title {
+            color: #d4a017;
+            font-weight: 700;
+            font-size: 15px;
+            margin-top: 20px;
+            margin-bottom: 6px;
+        }
+
+        /* ── Copy Button ── */
+        .copy-btn {
+            width: auto;
+            margin-top: 12px;
+            padding: 8px 20px;
+            font-size: 13px;
+            background: #162b50;
+            color: #7a9bbe;
+            border: 1px solid #162b50;
+        }
+
+        .copy-btn:hover { background: #1e3a6e; color: #e8f0f8; }
+
+        /* ── Tips ── */
+        .tips {
+            grid-column: 1 / -1;
+            background: #0f2040;
+            border: 1px solid #162b50;
+            border-radius: 12px;
+            padding: 20px 28px;
+        }
+
+        .tips h3 {
+            color: #d4a017;
+            font-size: 13px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 12px;
+        }
+
+        .tips-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 16px;
+        }
+
+        .tip {
+            font-size: 12.5px;
+            color: #7a9bbe;
+            line-height: 1.5;
+        }
+
+        .tip strong { color: #e8f0f8; display: block; margin-bottom: 4px; }
+    </style>
+</head>
+<body>
+
+    <!-- Header -->
+    <header>
+        <div>
+            <h1>⚡ BA Copilot</h1>
+            <p>AI-Powered Business Requirements Generator</p>
+        </div>
+        <span class="badge">MVP v1.0</span>
+    </header>
+
+    <!-- Main Content -->
+    <div class="container">
+
+        <!-- Left: Input -->
+        <div class="card">
+            <h2>📝 Your Business Problem</h2>
+            <textarea
+                id="problemInput"
+                placeholder="Describe your business problem here...
+
+Example:
+Our HR department currently onboards new employees using email and paper forms. This takes 2 weeks and errors occur frequently. New employees often start without proper system access. We need a digital solution."
+            ></textarea>
+
+            <button id="generateBtn" onclick="generateBRD()">
+                ⚡ Generate BRD
+            </button>
+
+            <div id="status" class="status"></div>
+
+            <!-- Tips -->
+            <div style="margin-top: 20px;">
+                <p style="font-size: 12px; color: #3a5470; margin-bottom: 8px;">
+                    💡 TIP: The more detail you provide, the better your BRD will be
+                </p>
+                <p style="font-size: 12px; color: #3a5470;">
+                    ⏱ Generation takes 15–30 seconds
+                </p>
+            </div>
+        </div>
+
+        <!-- Right: Output -->
+        <div class="card">
+            <h2>📄 Generated BRD</h2>
+            <div id="output" class="output-box empty">
+                Your BRD will appear here...
+            </div>
+            <button class="copy-btn" onclick="copyBRD()">
+                📋 Copy BRD
+            </button>
+        </div>
+
+        <!-- Bottom: Tips -->
+        <div class="tips">
+            <h3>💡 How to write a good problem statement</h3>
+            <div class="tips-grid">
+                <div class="tip">
+                    <strong>1. Describe the current situation</strong>
+                    What is happening right now? What process is broken or missing?
+                </div>
+                <div class="tip">
+                    <strong>2. Explain the pain points</strong>
+                    What specific problems does this cause? Who is affected?
+                </div>
+                <div class="tip">
+                    <strong>3. State what you need</strong>
+                    What kind of solution are you looking for? What should it achieve?
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        let lastBRD = "";
+
+        async function generateBRD() {
+            const problem = document.getElementById("problemInput").value.trim();
+            const btn     = document.getElementById("generateBtn");
+            const status  = document.getElementById("status");
+            const output  = document.getElementById("output");
+
+            // Validate
+            if (!problem) {
+                showStatus("error", "Please enter a business problem first.");
+                return;
+            }
+            if (problem.length < 20) {
+                showStatus("error", "Please describe your problem in more detail.");
+                return;
+            }
+
+            // Loading state
+            btn.disabled  = true;
+            btn.innerHTML = '<span class="spinner"></span> Generating your BRD...';
+            output.className = "output-box empty";
+            output.textContent = "⏳ Analysing your problem and searching knowledge base...";
+            showStatus("loading", '<span class="spinner"></span> Sending to GPT-4o-mini — this takes 15–30 seconds...');
+
+            try {
+                // Call our FastAPI backend
+                const response = await fetch("/generate", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ problem: problem })
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.detail || "Something went wrong");
+                }
+
+                // Display the BRD
+                lastBRD = data.brd;
+                output.className  = "output-box";
+                output.textContent = data.brd;
+
+                showStatus("success", "✅ BRD generated successfully!");
+
+            } catch (error) {
+                output.className  = "output-box empty";
+                output.textContent = "Your BRD will appear here...";
+                showStatus("error", "❌ Error: " + error.message);
+            }
+
+            // Reset button
+            btn.disabled  = false;
+            btn.innerHTML = "⚡ Generate BRD";
+        }
+
+        function copyBRD() {
+            if (!lastBRD) {
+                alert("Generate a BRD first!");
+                return;
+            }
+            navigator.clipboard.writeText(lastBRD)
+                .then(() => alert("✅ BRD copied to clipboard!"))
+                .catch(() => alert("Please select the text manually and copy it."));
+        }
+
+        function showStatus(type, message) {
+            const status = document.getElementById("status");
+            status.className = `status ${type}`;
+            status.innerHTML = message;
+        }
+
+        // Allow Ctrl+Enter to generate
+        document.addEventListener("keydown", function(e) {
+            if (e.ctrlKey && e.key === "Enter") generateBRD();
+        });
+    </script>
+
+</body>
+</html>

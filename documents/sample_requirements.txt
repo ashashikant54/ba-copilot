@@ -1,0 +1,32 @@
+Project: Employee Onboarding Portal
+
+Business Problem:
+Our company currently onboards new employees using email and paper forms.
+This process takes 2 weeks and involves HR, IT, and Finance teams manually
+processing each new hire. Errors occur frequently and new employees often
+start without proper system access.
+
+Current Pain Points:
+- New hire paperwork takes 3-5 days to process manually
+- IT access provisioning is delayed by an average of 4 days
+- HR spends 40% of their time on repetitive onboarding tasks
+- No visibility into where each new hire is in the process
+- Compliance documents are sometimes missed or filed incorrectly
+
+Business Goals:
+- Reduce onboarding time from 2 weeks to 2 days
+- Automate IT access provisioning on day 1
+- Give HR real-time visibility into onboarding status
+- Ensure 100% compliance document completion
+- Reduce HR manual effort by 60%
+
+Stakeholders:
+- HR Director: Wants faster onboarding and less manual work
+- IT Manager: Wants automated access provisioning
+- Finance: Wants accurate cost tracking per new hire
+- New Employees: Want a smooth first-day experience
+
+Users:
+- HR Team (10 people) - will manage and monitor onboarding
+- New Employees (50 per month) - will complete their own onboarding
+- Managers (30 people) - will approve and track their new hires
