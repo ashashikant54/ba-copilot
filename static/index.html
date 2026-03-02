@@ -1,662 +1,1434 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>BA Copilot — Phase 1</title>
-  <style>
-    /* ── Reset ── */
-    * { margin:0; padding:0; box-sizing:border-box; }
-    body { font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
-           background:#060d1a; color:#e8f0f8; min-height:100vh; }
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>BA Copilot</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mermaid/10.6.1/mermaid.min.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#060d1a;color:#e8f0f8;min-height:100vh;}
 
-    /* ── Header ── */
-    header { background:#0a1628; border-bottom:3px solid #d4a017;
-             padding:14px 32px; display:flex; align-items:center; gap:16px; }
-    header h1 { font-size:22px; color:#d4a017; font-weight:700; }
-    header p  { font-size:12px; color:#7a9bbe; margin-top:2px; }
-    .badge    { background:#d4a017; color:#0a1628; font-size:11px;
-                font-weight:700; padding:3px 10px; border-radius:20px; margin-left:auto; }
+/* ── Header ── */
+header{background:#0a1628;border-bottom:3px solid #d4a017;padding:14px 32px;display:flex;align-items:center;gap:16px;}
+header h1{font-size:22px;color:#d4a017;font-weight:700;}
+header p{font-size:12px;color:#7a9bbe;margin-top:2px;}
+.badge{background:#d4a017;color:#0a1628;font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px;margin-left:auto;}
 
-    /* ── Tab Bar ── */
-    .tabs { background:#0a1628; display:flex; border-bottom:2px solid #162b50; }
-    .tab  { padding:12px 28px; font-size:13px; font-weight:600; cursor:pointer;
-            color:#7a9bbe; border-bottom:3px solid transparent; transition:.2s;
-            margin-bottom:-2px; }
-    .tab.active { color:#d4a017; border-bottom-color:#d4a017; }
-    .tab:hover  { color:#e8f0f8; }
+/* ── Tabs ── */
+.tabs{background:#0a1628;display:flex;border-bottom:2px solid #162b50;}
+.tab{padding:12px 28px;font-size:13px;font-weight:600;cursor:pointer;color:#7a9bbe;border-bottom:3px solid transparent;transition:.2s;margin-bottom:-2px;}
+.tab.active{color:#d4a017;border-bottom-color:#d4a017;}
+.tab:hover{color:#e8f0f8;}
+.tab-content{display:none;padding:24px 32px;}
+.tab-content.active{display:block;}
 
-    /* ── Tab Content ── */
-    .tab-content { display:none; padding:28px 32px; }
-    .tab-content.active { display:block; }
+/* ── Cards ── */
+.card{background:#0f2040;border-radius:12px;padding:20px;border:1px solid #162b50;margin-bottom:16px;}
+.card-title{font-size:12px;font-weight:700;color:#d4a017;text-transform:uppercase;letter-spacing:1px;margin-bottom:14px;}
 
-    /* ── Cards ── */
-    .card { background:#0f2040; border-radius:12px; padding:24px;
-            border:1px solid #162b50; margin-bottom:20px; }
-    .card h2 { font-size:13px; font-weight:700; color:#d4a017;
-               text-transform:uppercase; letter-spacing:1px; margin-bottom:16px; }
+/* ── Grid ── */
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+.grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;}
 
-    /* ── Grid ── */
-    .grid-2 { display:grid; grid-template-columns:1fr 1fr; gap:20px; }
-    .grid-3 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:20px; }
+/* ── Form ── */
+input,select,textarea{width:100%;background:#060d1a;border:1px solid #162b50;border-radius:8px;color:#e8f0f8;font-size:13px;padding:9px 13px;font-family:inherit;transition:border-color .2s;}
+input:focus,select:focus,textarea:focus{outline:none;border-color:#d4a017;}
+input::placeholder,textarea::placeholder{color:#3a5470;}
+select option{background:#0a1628;}
+label{display:block;font-size:11px;color:#7a9bbe;font-weight:600;margin-bottom:5px;text-transform:uppercase;letter-spacing:.5px;}
+.field{margin-bottom:12px;}
 
-    /* ── Form Elements ── */
-    input, select, textarea {
-      width:100%; background:#060d1a; border:1px solid #162b50;
-      border-radius:8px; color:#e8f0f8; font-size:13px; padding:10px 14px;
-      font-family:inherit; transition:border-color .2s;
-    }
-    input:focus, select:focus, textarea:focus
-      { outline:none; border-color:#d4a017; }
-    input::placeholder, textarea::placeholder { color:#3a5470; }
-    select option { background:#0a1628; }
-    label { display:block; font-size:11px; color:#7a9bbe;
-            font-weight:600; margin-bottom:6px; text-transform:uppercase;
-            letter-spacing:.5px; }
+/* ── Buttons ── */
+.btn{padding:9px 18px;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;transition:.2s;}
+.btn-gold{background:#d4a017;color:#0a1628;}
+.btn-gold:hover{background:#f0c040;}
+.btn-navy{background:#162b50;color:#7a9bbe;border:1px solid #162b50;}
+.btn-navy:hover{background:#1e3a6e;color:#e8f0f8;}
+.btn-green{background:#166534;color:#86efac;}
+.btn-green:hover{background:#15803d;}
+.btn-red{background:#7f1d1d;color:#fca5a5;}
+.btn-red:hover{background:#991b1b;}
+.btn-full{width:100%;padding:12px;font-size:14px;margin-top:8px;}
+.btn:disabled{background:#3a5470;color:#7a9bbe;cursor:not-allowed;}
+.btn-row{display:flex;gap:8px;margin-top:10px;}
+.inline-row{display:flex;gap:8px;align-items:flex-end;}
+.inline-row>div{flex:1;}
 
-    /* ── Buttons ── */
-    .btn { padding:10px 20px; border:none; border-radius:8px; font-size:13px;
-           font-weight:700; cursor:pointer; transition:.2s; }
-    .btn-gold  { background:#d4a017; color:#0a1628; }
-    .btn-gold:hover { background:#f0c040; }
-    .btn-navy  { background:#162b50; color:#7a9bbe; border:1px solid #162b50; }
-    .btn-navy:hover { background:#1e3a6e; color:#e8f0f8; }
-    .btn-red   { background:#7f1d1d; color:#fca5a5; }
-    .btn-red:hover { background:#991b1b; }
-    .btn:disabled { background:#3a5470; color:#7a9bbe; cursor:not-allowed; }
-    .btn-full  { width:100%; margin-top:12px; padding:13px; font-size:14px; }
+/* ── Status ── */
+.status{margin-top:8px;padding:9px 13px;border-radius:8px;font-size:12px;display:none;}
+.status.show{display:block;}
+.status.ok{background:#0a2d0a;color:#86efac;border:1px solid #16a34a;}
+.status.err{background:#2d0a0a;color:#f87171;border:1px solid #dc2626;}
+.status.load{background:#162b50;color:#93c5fd;border:1px solid #162b50;}
 
-    /* ── Upload Zone ── */
-    .upload-zone {
-      border:2px dashed #162b50; border-radius:10px; padding:32px;
-      text-align:center; cursor:pointer; transition:.2s; margin:12px 0;
-    }
-    .upload-zone:hover, .upload-zone.drag { border-color:#d4a017; background:#0a1628; }
-    .upload-zone p  { color:#3a5470; font-size:13px; margin-top:8px; }
-    .upload-zone span { font-size:32px; }
-    #fileInput { display:none; }
+/* ── Spinner ── */
+.spin{display:inline-block;width:12px;height:12px;border:2px solid #3a5470;border-top-color:#d4a017;border-radius:50%;animation:spin .8s linear infinite;margin-right:6px;vertical-align:middle;}
+@keyframes spin{to{transform:rotate(360deg);}}
 
-    /* ── Status Messages ── */
-    .status { margin-top:10px; padding:10px 14px; border-radius:8px;
-              font-size:12px; display:none; }
-    .status.show   { display:block; }
-    .status.ok     { background:#0a2d0a; color:#86efac; border:1px solid #16a34a; }
-    .status.err    { background:#2d0a0a; color:#f87171; border:1px solid #dc2626; }
-    .status.load   { background:#162b50; color:#7a9bbe; border:1px solid #162b50; }
+/* ── Stage Wizard ── */
+.stage-bar{display:flex;gap:4px;margin-bottom:20px;flex-wrap:wrap;}
+.stage-pill{padding:5px 12px;border-radius:20px;font-size:11px;font-weight:700;cursor:default;background:#162b50;color:#3a5470;border:1px solid #162b50;}
+.stage-pill.done{background:#166534;color:#86efac;border-color:#16a34a;}
+.stage-pill.active{background:#d4a017;color:#0a1628;border-color:#d4a017;}
+.stage-pill.pending{background:#162b50;color:#3a5470;}
 
-    /* ── Spinner ── */
-    .spin { display:inline-block; width:13px; height:13px; border:2px solid #3a5470;
-            border-top-color:#d4a017; border-radius:50%;
-            animation:spin .8s linear infinite; margin-right:6px; vertical-align:middle; }
-    @keyframes spin { to { transform:rotate(360deg); } }
+.stage-panel{display:none;}
+.stage-panel.active{display:block;}
 
-    /* ── Document Tree ── */
-    .tree { font-size:13px; }
-    .tree-system { margin-bottom:16px; }
-    .tree-system-hdr {
-      display:flex; align-items:center; gap:8px;
-      background:#162b50; border-radius:8px; padding:10px 14px;
-      font-weight:700; color:#d4a017; cursor:pointer;
-    }
-    .tree-source { margin:6px 0 6px 20px; }
-    .tree-source-hdr {
-      display:flex; align-items:center; gap:8px;
-      background:#0a1628; border-radius:6px; padding:8px 12px;
-      font-weight:600; color:#7a9bbe; font-size:12px;
-    }
-    .tree-doc {
-      display:flex; align-items:center; justify-content:space-between;
-      margin:4px 0 4px 40px; background:#060d1a; border-radius:6px;
-      padding:7px 12px; font-size:12px; color:#a0c4e2;
-      border:1px solid #0f2040;
-    }
-    .tree-doc-meta { color:#3a5470; font-size:11px; margin-top:2px; }
-    .doc-badge { background:#162b50; color:#7a9bbe; font-size:10px;
-                 padding:2px 7px; border-radius:10px; margin-left:6px; }
-    .empty-tree { color:#3a5470; font-size:13px; padding:20px; text-align:center; }
+/* ── Question Cards ── */
+.q-card{background:#060d1a;border:1px solid #162b50;border-radius:8px;padding:14px;margin-bottom:10px;}
+.q-card .q-text{font-size:13px;color:#e8f0f8;margin-bottom:4px;}
+.q-card .q-meta{font-size:11px;color:#3a5470;margin-bottom:8px;}
+.q-card .q-why{font-size:11px;color:#7a9bbe;font-style:italic;margin-bottom:8px;}
+.q-card textarea{min-height:60px;}
+.q-tag{display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;margin-right:4px;}
+.tag-high{background:#7f1d1d;color:#fca5a5;}
+.tag-med{background:#78350f;color:#fcd34d;}
+.tag-low{background:#1e3a6e;color:#93c5fd;}
+.tag-info{background:#162b50;color:#7a9bbe;}
 
-    /* ── BRD Output ── */
-    .brd-output {
-      background:#060d1a; border:1px solid #162b50; border-radius:8px;
-      padding:20px; height:480px; overflow-y:auto; font-size:13px;
-      line-height:1.7; white-space:pre-wrap; color:#c8d8e8;
-    }
-    .brd-output.empty { display:flex; align-items:center;
-                        justify-content:center; color:#3a5470; }
+/* ── Analysis Cards ── */
+.analysis-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;}
+.sys-card{background:#060d1a;border-radius:8px;padding:12px;border-left:4px solid #d4a017;}
+.sys-card.out-scope{border-left-color:#3a5470;}
+.sys-card .sys-name{font-size:13px;font-weight:700;color:#e8f0f8;}
+.sys-card .sys-impact{font-size:11px;margin-top:4px;}
+.sys-card .sys-reason{font-size:11px;color:#7a9bbe;margin-top:6px;}
+.sys-card .sys-evidence{font-size:10px;color:#3a5470;margin-top:4px;font-style:italic;}
+.impact-high{color:#f87171;}
+.impact-med{color:#fcd34d;}
+.impact-low{color:#86efac;}
 
-    /* ── System Pills ── */
-    .pill { display:inline-flex; align-items:center; gap:6px;
-            background:#162b50; border-radius:20px; padding:4px 12px;
-            font-size:12px; color:#7a9bbe; margin:4px; }
-    .pill-rm { cursor:pointer; color:#3a5470; font-size:14px; }
-    .pill-rm:hover { color:#f87171; }
+.stakeholder-table{width:100%;border-collapse:collapse;font-size:12px;}
+.stakeholder-table th{background:#162b50;color:#7a9bbe;padding:8px 10px;text-align:left;font-size:11px;text-transform:uppercase;}
+.stakeholder-table td{padding:8px 10px;border-bottom:1px solid #0f2040;color:#c8d8e8;}
+.stakeholder-table tr:hover td{background:#0a1628;}
 
-    /* ── Inline form row ── */
-    .inline-row { display:flex; gap:8px; align-items:flex-end; }
-    .inline-row > div { flex:1; }
-    .inline-row .btn { flex-shrink:0; height:38px; margin-top:0; }
-  </style>
+.process-step{display:flex;gap:12px;margin-bottom:8px;align-items:flex-start;}
+.step-num{background:#d4a017;color:#0a1628;font-weight:700;font-size:12px;width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:2px;}
+.step-num.needs-clarification{background:#dc2626;}
+.step-body{flex:1;background:#060d1a;border-radius:6px;padding:10px;border:1px solid #162b50;}
+.step-action{font-size:13px;color:#e8f0f8;}
+.step-meta{font-size:11px;color:#3a5470;margin-top:3px;}
+.step-pain{font-size:11px;color:#f87171;margin-top:4px;}
+
+/* ── Mermaid graph ── */
+.graph-box{background:#060d1a;border:1px solid #162b50;border-radius:8px;padding:20px;overflow-x:auto;margin-bottom:12px;}
+.graph-box svg{max-width:100%;}
+
+/* ── Requirements ── */
+.req-card{background:#060d1a;border:1px solid #162b50;border-radius:8px;padding:14px;margin-bottom:10px;transition:border-color .2s;}
+.req-card.accepted{border-color:#16a34a;}
+.req-card.edited{border-color:#d4a017;}
+.req-card.rejected{border-color:#dc2626;opacity:.5;}
+.req-header{display:flex;align-items:center;gap:8px;margin-bottom:8px;}
+.req-id{font-size:11px;font-weight:700;color:#d4a017;}
+.req-type{font-size:10px;padding:2px 7px;border-radius:10px;background:#162b50;color:#7a9bbe;}
+.req-confidence{font-size:10px;color:#3a5470;}
+.req-text{font-size:13px;color:#e8f0f8;margin-bottom:10px;line-height:1.5;}
+.req-rationale{font-size:11px;color:#7a9bbe;font-style:italic;margin-bottom:10px;}
+.req-actions{display:flex;gap:6px;flex-wrap:wrap;}
+.req-edit-box{margin-top:8px;display:none;}
+.req-edit-box.show{display:block;}
+
+/* ── BRD Output ── */
+.brd-output{background:#060d1a;border:1px solid #162b50;border-radius:8px;padding:20px;min-height:400px;font-size:13px;line-height:1.7;white-space:pre-wrap;color:#c8d8e8;overflow-y:auto;max-height:600px;}
+
+/* ── Story Cards ── */
+.story-card{background:#060d1a;border:1px solid #162b50;border-radius:8px;padding:14px;margin-bottom:10px;}
+.story-header{display:flex;align-items:center;gap:8px;margin-bottom:10px;}
+.story-id{font-size:11px;font-weight:700;color:#d4a017;}
+.story-parent{font-size:10px;color:#3a5470;}
+.story-title{font-size:13px;font-weight:700;color:#e8f0f8;margin-bottom:8px;}
+.story-format{font-size:12px;color:#c8d8e8;line-height:1.8;margin-bottom:10px;}
+.story-ac{margin-top:8px;}
+.story-ac-title{font-size:11px;font-weight:700;color:#7a9bbe;margin-bottom:4px;text-transform:uppercase;}
+.story-ac-item{font-size:12px;color:#86efac;margin-bottom:3px;padding-left:12px;}
+.story-ac-item::before{content:"✓ ";}
+.story-meta{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;}
+.story-tag{background:#162b50;color:#7a9bbe;font-size:10px;padding:2px 7px;border-radius:10px;}
+
+/* ── Clarity meter ── */
+.clarity-bar{height:10px;background:#162b50;border-radius:5px;margin:8px 0;}
+.clarity-fill{height:100%;border-radius:5px;transition:width .5s;}
+
+/* ── Session list ── */
+.session-card{background:#060d1a;border:1px solid #162b50;border-radius:8px;padding:14px;margin-bottom:10px;cursor:pointer;transition:border-color .2s;}
+.session-card:hover{border-color:#d4a017;}
+.session-meta{display:flex;gap:8px;align-items:center;margin-bottom:6px;flex-wrap:wrap;}
+.session-problem{font-size:12px;color:#7a9bbe;line-height:1.4;}
+
+/* ── Knowledge Base tab ── */
+.kb-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;}
+.upload-zone{border:2px dashed #162b50;border-radius:10px;padding:28px;text-align:center;cursor:pointer;transition:.2s;margin:10px 0;}
+.upload-zone:hover,.upload-zone.drag{border-color:#d4a017;background:#0a1628;}
+.upload-zone span{font-size:28px;}
+.upload-zone p{color:#3a5470;font-size:12px;margin-top:6px;}
+.tree-system-hdr{display:flex;align-items:center;gap:8px;background:#162b50;border-radius:8px;padding:9px 13px;font-weight:700;color:#d4a017;margin-bottom:6px;}
+.tree-source-hdr{display:flex;align-items:center;gap:8px;background:#0a1628;border-radius:6px;padding:7px 12px;font-weight:600;color:#7a9bbe;font-size:12px;margin:4px 0 4px 16px;}
+.tree-doc{display:flex;align-items:center;justify-content:space-between;margin:3px 0 3px 32px;background:#060d1a;border-radius:6px;padding:6px 10px;font-size:12px;color:#a0c4e2;border:1px solid #0f2040;}
+.tree-doc-meta{color:#3a5470;font-size:10px;margin-top:2px;}
+.doc-badge{background:#162b50;color:#7a9bbe;font-size:10px;padding:1px 6px;border-radius:10px;}
+.pill{display:inline-flex;align-items:center;gap:4px;background:#162b50;border-radius:20px;padding:3px 10px;font-size:12px;color:#7a9bbe;margin:3px;}
+.empty-state{color:#3a5470;text-align:center;padding:20px;font-size:13px;}
+</style>
 </head>
 <body>
 
-<!-- Header -->
 <header>
   <div>
     <h1>⚡ BA Copilot</h1>
-    <p>AI-Powered Business Requirements Generator</p>
+    <p>AI-Powered Business Analysis Platform</p>
   </div>
   <span class="badge">Phase 1</span>
 </header>
 
-<!-- Tab Bar -->
 <div class="tabs">
-  <div class="tab active" onclick="showTab('generate')">⚡ Generate BRD</div>
-  <div class="tab" onclick="showTab('upload')">📤 Upload Documents</div>
-  <div class="tab" onclick="showTab('knowledge')">🗂 Knowledge Base</div>
-  <div class="tab" onclick="showTab('systems')">⚙️ Manage Systems</div>
+  <div class="tab active" onclick="showTab('analyse',this)">⚡ Analyse</div>
+  <div class="tab" onclick="showTab('kb',this)">🗂 Knowledge Base</div>
+  <div class="tab" onclick="showTab('sessions',this)">📋 Sessions</div>
 </div>
 
-<!-- ══════════════════════════════════════════════════
-     TAB 1 — GENERATE BRD
-══════════════════════════════════════════════════ -->
-<div id="tab-generate" class="tab-content active">
-  <div class="grid-2">
+<!-- ═══════════════════════════════════════════════
+     TAB 1 — ANALYSE (8-stage wizard)
+═══════════════════════════════════════════════ -->
+<div id="tab-analyse" class="tab-content active">
 
-    <!-- Left: Input -->
-    <div>
+  <!-- Stage Progress Bar -->
+  <div class="stage-bar" id="stageBar">
+    <span class="stage-pill active" id="sp1">1 · Problem</span>
+    <span class="stage-pill pending" id="sp2">2 · Clarify</span>
+    <span class="stage-pill pending" id="sp3">3 · Analyse</span>
+    <span class="stage-pill pending" id="sp4">4 · Gaps</span>
+    <span class="stage-pill pending" id="sp5">5 · Requirements</span>
+    <span class="stage-pill pending" id="sp6">6 · BRD</span>
+    <span class="stage-pill pending" id="sp7">7 · Stories</span>
+  </div>
+
+  <!-- ── STAGE 1: Problem ── -->
+  <div id="stage-1" class="stage-panel active">
+    <div class="grid-2">
       <div class="card">
-        <h2>📝 Business Problem</h2>
-        <textarea id="problemInput" rows="8"
-          placeholder="Describe your business problem here...
-
-Example:
-Our HR department currently onboards new employees using email and paper forms. This takes 2 weeks and errors occur frequently. We need a digital solution."></textarea>
-      </div>
-
-      <div class="card">
-        <h2>🔍 Filter by Source (Optional)</h2>
-        <p style="font-size:12px;color:#7a9bbe;margin-bottom:14px;">
-          Leave blank to search ALL documents. Select to narrow to a specific system or source.
-        </p>
-        <div class="grid-2" style="margin-bottom:12px;">
-          <div>
-            <label>System</label>
-            <select id="genSystem" onchange="loadGenSources()">
+        <div class="card-title">📝 Business Problem Statement</div>
+        <div class="field">
+          <textarea id="problemInput" rows="7"
+            placeholder="Describe your business problem...&#10;&#10;Example:&#10;Our HR department onboards new employees using email and paper forms. This takes 2 weeks, errors are frequent, and new hires often start without proper system access."></textarea>
+        </div>
+        <div class="grid-2">
+          <div class="field">
+            <label>Filter by System (optional)</label>
+            <select id="s1System" onchange="loadS1Sources()">
               <option value="">All Systems</option>
             </select>
           </div>
-          <div>
-            <label>Source Type</label>
-            <select id="genSource">
+          <div class="field">
+            <label>Filter by Source (optional)</label>
+            <select id="s1Source">
               <option value="">All Sources</option>
             </select>
           </div>
         </div>
-        <button class="btn btn-gold btn-full" id="generateBtn" onclick="generateBRD()">
-          ⚡ Generate BRD
+        <button class="btn btn-gold btn-full" onclick="startAnalysis()">
+          ⚡ Start Analysis
         </button>
-        <div id="genStatus" class="status"></div>
+        <div id="s1Status" class="status"></div>
       </div>
-    </div>
-
-    <!-- Right: Output -->
-    <div>
-      <div class="card" style="height:calc(100% - 0px)">
-        <h2>📄 Generated BRD</h2>
-        <div id="brdOutput" class="brd-output empty">
-          Your BRD will appear here...
-        </div>
-        <div style="display:flex;gap:8px;margin-top:12px;">
-          <button class="btn btn-navy" onclick="copyBRD()">📋 Copy</button>
-          <button class="btn btn-navy" onclick="saveBRD()">💾 Save .md</button>
+      <div class="card">
+        <div class="card-title">💡 What Happens Next</div>
+        <div style="font-size:13px;color:#7a9bbe;line-height:2.2;">
+          <div>1️⃣  <strong style="color:#e8f0f8">Clarification</strong> — AI asks targeted questions</div>
+          <div>2️⃣  <strong style="color:#e8f0f8">Problem Refinement</strong> — Measurable statement</div>
+          <div>3️⃣  <strong style="color:#e8f0f8">System Analysis</strong> — Impacted systems + stakeholders</div>
+          <div>4️⃣  <strong style="color:#e8f0f8">Gap Filling</strong> — Human-in-the-loop Q&A</div>
+          <div>5️⃣  <strong style="color:#e8f0f8">Requirements</strong> — Accept / Edit / Reject</div>
+          <div>6️⃣  <strong style="color:#e8f0f8">BRD Preview</strong> — Review and approve</div>
+          <div>7️⃣  <strong style="color:#e8f0f8">User Stories</strong> — ADO-ready export</div>
         </div>
       </div>
     </div>
   </div>
-</div>
 
-<!-- ══════════════════════════════════════════════════
-     TAB 2 — UPLOAD DOCUMENTS
-══════════════════════════════════════════════════ -->
-<div id="tab-upload" class="tab-content">
-  <div class="grid-2">
+  <!-- ── STAGE 2: Clarification ── -->
+  <div id="stage-2" class="stage-panel">
     <div class="card">
-      <h2>📤 Upload a Document</h2>
+      <div class="card-title">❓ Clarifying Questions</div>
+      <p style="font-size:12px;color:#7a9bbe;margin-bottom:14px;">
+        Answer each question — the AI will use your answers to refine the problem statement.
+      </p>
+      <div id="questionsContainer"></div>
+      <div class="btn-row">
+        <button class="btn btn-gold" onclick="submitAnswers()">
+          ✅ Submit Answers
+        </button>
+      </div>
+      <div id="s2Status" class="status"></div>
+    </div>
 
-      <div style="margin-bottom:14px;">
+    <div class="card" id="refinedProblemCard" style="display:none;">
+      <div class="card-title">✏️ Refined Problem Statement</div>
+      <p style="font-size:12px;color:#7a9bbe;margin-bottom:10px;">
+        Review the AI-refined problem statement. Edit if needed, then approve.
+      </p>
+      <textarea id="refinedProblemText" rows="5"></textarea>
+      <div class="btn-row">
+        <button class="btn btn-gold" onclick="approveProblem()">
+          ✅ Approve & Continue to Analysis
+        </button>
+      </div>
+      <div id="s2bStatus" class="status"></div>
+    </div>
+  </div>
+
+  <!-- ── STAGE 3: Analysis ── -->
+  <div id="stage-3" class="stage-panel">
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+        <div class="card-title" style="margin:0;">🏢 Impacted Systems</div>
+        <div id="s3Legend" style="font-size:11px;color:#7a9bbe;">
+          <span style="color:#d4a017;">▌</span> In Scope &nbsp;
+          <span style="color:#3a5470;">▌</span> Out of Scope
+        </div>
+      </div>
+      <div id="systemsGrid" class="analysis-grid"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">👥 Impacted Stakeholders</div>
+      <table class="stakeholder-table">
+        <thead>
+          <tr>
+            <th>Stakeholder</th><th>Team</th>
+            <th>Impact</th><th>Involvement</th><th>Reason</th>
+          </tr>
+        </thead>
+        <tbody id="stakeholdersBody"></tbody>
+      </table>
+    </div>
+
+    <div class="card">
+      <div class="card-title">🔄 Existing End-to-End Process</div>
+      <div id="processSteps"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">🗺️ System Relationship Graph</div>
+      <div id="graphBox" class="graph-box">
+        <div class="empty-state">Graph loading...</div>
+      </div>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn btn-gold" onclick="approveAnalysis()">
+        ✅ Approve Analysis & Continue to Gap Filling
+      </button>
+    </div>
+    <div id="s3Status" class="status"></div>
+  </div>
+
+  <!-- ── STAGE 4: Gap Filling ── -->
+  <div id="stage-4" class="stage-panel">
+    <div class="card">
+      <div class="card-title">🔍 Gap Questions</div>
+      <p style="font-size:12px;color:#7a9bbe;margin-bottom:14px;">
+        Answer these questions to fill critical gaps.
+        You can type answers or upload new documents in the Knowledge Base tab.
+      </p>
+      <div id="gapQuestionsContainer"></div>
+      <div class="btn-row">
+        <button class="btn btn-gold" onclick="submitGapAnswers()">
+          ✅ Submit Answers & Assess Clarity
+        </button>
+      </div>
+      <div id="s4Status" class="status"></div>
+    </div>
+
+    <div class="card" id="clarityCard" style="display:none;">
+      <div class="card-title">📊 Clarity Assessment</div>
+      <div id="clarityContent"></div>
+      <div class="btn-row" id="clarityActions"></div>
+    </div>
+  </div>
+
+  <!-- ── STAGE 5: Requirements ── -->
+  <div id="stage-5" class="stage-panel">
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+        <div class="card-title" style="margin:0;">📋 Business Requirements</div>
+        <div id="reqSummaryBadges" style="font-size:12px;color:#7a9bbe;"></div>
+      </div>
+      <p style="font-size:12px;color:#7a9bbe;margin-bottom:14px;">
+        Review each requirement. Accept, edit, or reject before generating the BRD.
+      </p>
+      <div id="requirementsContainer"></div>
+      <div class="btn-row" style="margin-top:16px;">
+        <button class="btn btn-gold btn-full" id="generateBrdBtn"
+                onclick="advanceToBrd()" disabled>
+          📄 Generate BRD Preview
+        </button>
+      </div>
+      <div id="s5Status" class="status"></div>
+    </div>
+  </div>
+
+  <!-- ── STAGE 6: BRD Preview ── -->
+  <div id="stage-6" class="stage-panel">
+    <div class="card">
+      <div class="card-title">📄 BRD Preview</div>
+      <div id="brdOutput" class="brd-output">Generating BRD...</div>
+      <div class="btn-row" style="margin-top:12px;">
+        <button class="btn btn-gold" onclick="approveBrd()">
+          ✅ Approve BRD & Generate User Stories
+        </button>
+        <button class="btn btn-navy" onclick="showFeedbackBox()">
+          🔄 Request Changes
+        </button>
+        <button class="btn btn-navy" onclick="copyText('brdOutput')">
+          📋 Copy
+        </button>
+      </div>
+      <div id="feedbackBox" style="display:none;margin-top:12px;">
+        <div class="field">
+          <label>What changes are needed?</label>
+          <textarea id="brdFeedback" rows="3"
+            placeholder="e.g. Add more detail to the integration requirements section..."></textarea>
+        </div>
+        <button class="btn btn-gold" onclick="regenerateBrd()">
+          🔄 Regenerate with Feedback
+        </button>
+      </div>
+      <div id="s6Status" class="status"></div>
+    </div>
+  </div>
+
+  <!-- ── STAGE 7: User Stories ── -->
+  <div id="stage-7" class="stage-panel">
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+        <div class="card-title" style="margin:0;">📖 User Stories</div>
+        <div class="btn-row" style="margin:0;">
+          <button class="btn btn-navy" onclick="exportCsv()">
+            📥 Export CSV for ADO
+          </button>
+          <button class="btn btn-green" onclick="markComplete()">
+            🏁 Mark Complete
+          </button>
+        </div>
+      </div>
+      <div id="storiesContainer"></div>
+      <div id="s7Status" class="status"></div>
+    </div>
+  </div>
+
+</div><!-- end tab-analyse -->
+
+
+<!-- ═══════════════════════════════════════════════
+     TAB 2 — KNOWLEDGE BASE (combined)
+═══════════════════════════════════════════════ -->
+<div id="tab-kb" class="tab-content">
+
+  <div class="kb-grid">
+
+    <!-- Systems & Sources -->
+    <div class="card">
+      <div class="card-title">⚙️ Systems & Sources</div>
+
+      <div class="field">
+        <label>Add New System</label>
+        <div class="inline-row">
+          <div><input type="text" id="newSystemName"
+            placeholder="e.g. Finance System"
+            onkeydown="if(event.key==='Enter')addSystem()"></div>
+          <button class="btn btn-gold" onclick="addSystem()">+ Add</button>
+        </div>
+      </div>
+
+      <div class="field" style="margin-top:14px;">
+        <label>Add Source to System</label>
+        <div style="margin-bottom:6px;">
+          <select id="srcSystem"></select>
+        </div>
+        <div class="inline-row">
+          <div><input type="text" id="newSourceName"
+            placeholder="e.g. Meeting Recordings"
+            onkeydown="if(event.key==='Enter')addSource()"></div>
+          <button class="btn btn-gold" onclick="addSource()">+ Add</button>
+        </div>
+      </div>
+
+      <div id="sysStatus" class="status"></div>
+
+      <div id="systemsPills" style="margin-top:14px;"></div>
+    </div>
+
+    <!-- Upload Document -->
+    <div class="card">
+      <div class="card-title">📤 Upload Document</div>
+
+      <div class="field">
         <label>1. Select System</label>
         <select id="upSystem" onchange="loadUploadSources()">
-          <option value="">— Select a System —</option>
+          <option value="">— Select System —</option>
         </select>
       </div>
-
-      <div style="margin-bottom:14px;">
-        <label>2. Select Source Type</label>
+      <div class="field">
+        <label>2. Select Source</label>
         <select id="upSource">
-          <option value="">— Select a Source —</option>
+          <option value="">— Select Source —</option>
         </select>
       </div>
-
-      <div>
-        <label>3. Choose File (.txt, .docx, .pdf)</label>
-        <div class="upload-zone" onclick="document.getElementById('fileInput').click()"
-             id="uploadZone"
+      <div class="field">
+        <label>3. Choose File</label>
+        <div class="upload-zone" id="uploadZone"
+             onclick="document.getElementById('fileInput').click()"
              ondragover="event.preventDefault();this.classList.add('drag')"
              ondragleave="this.classList.remove('drag')"
              ondrop="handleDrop(event)">
           <span>📎</span>
           <p id="fileName">Drag & drop or click to browse</p>
-          <p style="font-size:11px;margin-top:4px;">.txt  ·  .docx  ·  .pdf</p>
+          <p style="font-size:11px;margin-top:4px;">.txt · .docx · .pdf</p>
         </div>
         <input type="file" id="fileInput" accept=".txt,.docx,.pdf"
-               onchange="handleFileSelect(this)">
+               style="display:none" onchange="handleFileSelect(this)">
       </div>
-
-      <button class="btn btn-gold btn-full" id="uploadBtn" onclick="uploadDocument()">
-        📤 Upload & Index Document
+      <button class="btn btn-gold btn-full" id="uploadBtn"
+              onclick="uploadDocument()">
+        📤 Upload & Index
       </button>
       <div id="uploadStatus" class="status"></div>
     </div>
-
-    <!-- Upload instructions -->
-    <div class="card">
-      <h2>💡 How It Works</h2>
-      <div style="font-size:13px;color:#7a9bbe;line-height:2;">
-        <p>📁 <strong style="color:#e8f0f8;">1. Select System</strong><br>
-           Choose which system this document belongs to.<br>
-           e.g. HR System, Finance System</p>
-        <br>
-        <p>📂 <strong style="color:#e8f0f8;">2. Select Source</strong><br>
-           Choose where this document came from.<br>
-           e.g. SharePoint, Azure DevOps, Database</p>
-        <br>
-        <p>📄 <strong style="color:#e8f0f8;">3. Upload File</strong><br>
-           Upload any .txt, .docx, or .pdf file.<br>
-           The system will automatically chunk, embed,<br>
-           and index it into Azure AI Search.</p>
-        <br>
-        <p>⚡ <strong style="color:#e8f0f8;">4. Generate BRD</strong><br>
-           Go to the Generate tab. The AI will now<br>
-           use your uploaded documents as its<br>
-           knowledge base — with full citations.</p>
-      </div>
-    </div>
   </div>
-</div>
 
-<!-- ══════════════════════════════════════════════════
-     TAB 3 — KNOWLEDGE BASE
-══════════════════════════════════════════════════ -->
-<div id="tab-knowledge" class="tab-content">
+  <!-- Indexed Documents Tree -->
   <div class="card">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
-      <h2 style="margin:0;">🗂 Indexed Documents</h2>
-      <button class="btn btn-navy" onclick="loadKnowledgeBase()">🔄 Refresh</button>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+      <div class="card-title" style="margin:0;">📄 Indexed Documents</div>
+      <button class="btn btn-navy" onclick="loadDocTree()">🔄 Refresh</button>
     </div>
-    <div id="docTree" class="tree">
-      <div class="empty-tree">Loading knowledge base...</div>
-    </div>
-  </div>
-</div>
-
-<!-- ══════════════════════════════════════════════════
-     TAB 4 — MANAGE SYSTEMS
-══════════════════════════════════════════════════ -->
-<div id="tab-systems" class="tab-content">
-  <div class="grid-2">
-
-    <!-- Add System -->
-    <div class="card">
-      <h2>🏢 Add New System</h2>
-      <label>System Name</label>
-      <div class="inline-row">
-        <div><input type="text" id="newSystemName" placeholder="e.g. Finance System"
-               onkeydown="if(event.key==='Enter')addSystem()"></div>
-        <button class="btn btn-gold" onclick="addSystem()">+ Add</button>
-      </div>
-      <div id="sysStatus" class="status"></div>
-    </div>
-
-    <!-- Add Source -->
-    <div class="card">
-      <h2>📁 Add Source Type to System</h2>
-      <div style="margin-bottom:10px;">
-        <label>System</label>
-        <select id="srcSystem"></select>
-      </div>
-      <label>Source Type Name</label>
-      <div class="inline-row">
-        <div><input type="text" id="newSourceName" placeholder="e.g. Meeting Recordings"
-               onkeydown="if(event.key==='Enter')addSource()"></div>
-        <button class="btn btn-gold" onclick="addSource()">+ Add</button>
-      </div>
-      <div id="srcStatus" class="status"></div>
-    </div>
+    <div id="docTree"></div>
   </div>
 
-  <!-- Current Systems -->
+</div><!-- end tab-kb -->
+
+
+<!-- ═══════════════════════════════════════════════
+     TAB 3 — SESSIONS
+═══════════════════════════════════════════════ -->
+<div id="tab-sessions" class="tab-content">
   <div class="card">
-    <h2>📋 Current Systems & Sources</h2>
-    <div id="systemsList"></div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+      <div class="card-title" style="margin:0;">📋 Analysis Sessions</div>
+      <button class="btn btn-navy" onclick="loadSessions()">🔄 Refresh</button>
+    </div>
+    <div id="sessionsList"></div>
   </div>
 </div>
 
 <script>
-// ── State ──────────────────────────────────────────────────────
-let systems    = {};
-let lastBRD    = "";
-let selectedFile = null;
+// ── State ───────────────────────────────────────────────────────
+let currentSessionId = null;
+let currentStage     = 1;
+let systems          = {};
+let selectedFile     = null;
+let currentRequirements = [];
 
-// ── Init ───────────────────────────────────────────────────────
+// ── Init ────────────────────────────────────────────────────────
 window.onload = async () => {
   await refreshSystems();
-  await loadKnowledgeBase();
+  await loadDocTree();
 };
 
-// ── Tab Switching ──────────────────────────────────────────────
-function showTab(name) {
-  document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
-  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+// ── Tab Switching ───────────────────────────────────────────────
+function showTab(name, el) {
+  document.querySelectorAll('.tab-content').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
   document.getElementById(`tab-${name}`).classList.add('active');
-  event.target.classList.add('active');
-  if (name === 'knowledge') loadKnowledgeBase();
-  if (name === 'systems') renderSystemsList();
-  if (name === 'upload' || name === 'generate') populateSystemDropdowns();
+  if(el) el.classList.add('active');
+  if(name==='kb') { loadDocTree(); renderSystemsPills(); }
+  if(name==='sessions') loadSessions();
 }
 
-// ── Systems ────────────────────────────────────────────────────
+// ── Stage Navigation ────────────────────────────────────────────
+function goToStage(n) {
+  document.querySelectorAll('.stage-panel').forEach(p=>p.classList.remove('active'));
+  document.getElementById(`stage-${n}`).classList.add('active');
+  currentStage = n;
+  updateStageBar(n);
+}
+
+function updateStageBar(active) {
+  for(let i=1;i<=7;i++){
+    const el = document.getElementById(`sp${i}`);
+    el.className = 'stage-pill ' + (i < active ? 'done' : i===active ? 'active' : 'pending');
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// STAGE 1 — PROBLEM
+// ═══════════════════════════════════════════════════════════════
+async function startAnalysis() {
+  const problem = document.getElementById('problemInput').value.trim();
+  const sys     = document.getElementById('s1System').value;
+  const src     = document.getElementById('s1Source').value;
+
+  if(!problem || problem.length < 20)
+    return showStatus('s1Status','err','Please describe your problem in more detail');
+
+  showStatus('s1Status','load','<span class="spin"></span> Creating session...');
+
+  const res  = await fetch('/sessions/create',{
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({
+      problem, system_name: sys||null, source_type: src||null
+    })
+  });
+  const data = await res.json();
+  if(!res.ok) return showStatus('s1Status','err',data.detail);
+
+  currentSessionId = data.session_id;
+
+  showStatus('s1Status','load',
+    '<span class="spin"></span> Generating clarifying questions...');
+
+  const qRes  = await fetch(`/sessions/${currentSessionId}/clarify/questions`,
+    {method:'POST'});
+  const qData = await qRes.json();
+  if(!qRes.ok) return showStatus('s1Status','err',qData.detail);
+
+  renderQuestions(qData.questions);
+  showStatus('s1Status','ok',`✅ Session created: ${currentSessionId}`);
+  goToStage(2);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// STAGE 2 — CLARIFICATION
+// ═══════════════════════════════════════════════════════════════
+function renderQuestions(questions) {
+  const container = document.getElementById('questionsContainer');
+  container.innerHTML = '';
+  questions.forEach(q => {
+    const inDocs = !q.not_found_in_docs;
+    container.innerHTML += `
+      <div class="q-card">
+        <div class="q-text">[${q.id}] ${q.question}</div>
+        <div class="q-why">Why asking: ${q.why_asking}</div>
+        <div style="margin-bottom:6px;">
+          <span class="q-tag tag-info">
+            ${inDocs ? '📄 Found in docs' : '❓ Not in docs'}
+          </span>
+        </div>
+        <textarea id="ans-${q.id}" rows="2"
+          placeholder="Your answer..."></textarea>
+      </div>`;
+  });
+}
+
+async function submitAnswers() {
+  const session = await getSession();
+  if(!session) return;
+
+  const questions = session.clarifying_questions || [];
+  const answers   = {};
+  questions.forEach(q => {
+    const el = document.getElementById(`ans-${q.id}`);
+    if(el) answers[q.id] = el.value.trim();
+  });
+
+  showStatus('s2Status','load',
+    '<span class="spin"></span> Saving answers and refining problem...');
+
+  await fetch(`/sessions/${currentSessionId}/clarify/answers`,{
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({answers})
+  });
+
+  const res  = await fetch(
+    `/sessions/${currentSessionId}/clarify/refine`,{method:'POST'});
+  const data = await res.json();
+  if(!res.ok) return showStatus('s2Status','err',data.detail);
+
+  document.getElementById('refinedProblemText').value = data.problem_refined;
+  document.getElementById('refinedProblemCard').style.display = 'block';
+  showStatus('s2Status','ok','✅ Problem refined — review and approve below');
+}
+
+async function approveProblem() {
+  const editedText = document.getElementById('refinedProblemText').value.trim();
+
+  showStatus('s2bStatus','load',
+    '<span class="spin"></span> Approving and running analysis...');
+
+  await fetch(`/sessions/${currentSessionId}/clarify/approve`,{
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({approved:true, manual_edit: editedText})
+  });
+
+  // Run Stage 3 analysis
+  const aRes  = await fetch(
+    `/sessions/${currentSessionId}/analyse`,{method:'POST'});
+  const aData = await aRes.json();
+  if(!aRes.ok) return showStatus('s2bStatus','err',aData.detail);
+
+  // Generate graph
+  const gRes  = await fetch(
+    `/sessions/${currentSessionId}/analyse/graph`,{method:'POST'});
+  const gData = await gRes.json();
+
+  renderAnalysis(aData, gData.graph);
+  showStatus('s2bStatus','ok','✅ Analysis complete');
+  goToStage(3);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// STAGE 3 — ANALYSIS
+// ═══════════════════════════════════════════════════════════════
+function renderAnalysis(data, graph) {
+  // Systems grid
+  const sg = document.getElementById('systemsGrid');
+  sg.innerHTML = '';
+  (data.impacted_systems||[]).forEach(s => {
+    const inScope = s.in_scope !== false;
+    const impCls  = s.impact_level==='High' ? 'impact-high' :
+                    s.impact_level==='Medium' ? 'impact-med' : 'impact-low';
+    const flag    = s.needs_clarification ?
+      ' <span class="q-tag tag-high">⚠️ Needs clarification</span>' : '';
+    sg.innerHTML += `
+      <div class="sys-card ${inScope?'':'out-scope'}">
+        <div class="sys-name">${inScope?'✅':'⬜'} ${s.name}${flag}</div>
+        <div class="sys-impact ${impCls}">Impact: ${s.impact_level}</div>
+        <div class="sys-reason">${s.reason}</div>
+        ${s.evidence?`<div class="sys-evidence">"${s.evidence}"</div>`:''}
+      </div>`;
+  });
+
+  // Stakeholders table
+  const sb = document.getElementById('stakeholdersBody');
+  sb.innerHTML = '';
+  (data.impacted_stakeholders||[]).forEach(st => {
+    const impCls = st.impact_level==='High' ? 'impact-high' :
+                   st.impact_level==='Medium' ? 'impact-med' : 'impact-low';
+    const flag   = st.needs_clarification ? ' ⚠️' : '';
+    sb.innerHTML += `
+      <tr>
+        <td>${st.name}${flag}</td>
+        <td>${st.team}</td>
+        <td class="${impCls}">${st.impact_level}</td>
+        <td>${st.involvement}</td>
+        <td style="color:#7a9bbe">${st.reason}</td>
+      </tr>`;
+  });
+
+  // Process steps
+  const ps = document.getElementById('processSteps');
+  ps.innerHTML = '';
+  (data.existing_process||[]).forEach(p => {
+    const needsClarify = p.needs_clarification;
+    ps.innerHTML += `
+      <div class="process-step">
+        <div class="step-num ${needsClarify?'needs-clarification':''}">${p.step}</div>
+        <div class="step-body">
+          <div class="step-action">${p.action}</div>
+          <div class="step-meta">
+            👤 ${p.actor} &nbsp;|&nbsp; 💻 ${p.system}
+            ${needsClarify?' &nbsp;|&nbsp; <span style="color:#f87171">⚠️ Needs clarification</span>':''}
+          </div>
+          ${p.pain_point?`<div class="step-pain">⚠ ${p.pain_point}</div>`:''}
+        </div>
+      </div>`;
+  });
+
+  // Mermaid graph
+  renderGraph(graph);
+}
+
+function renderGraph(graphDef) {
+  const box = document.getElementById('graphBox');
+  if(!graphDef) { box.innerHTML='<div class="empty-state">No graph available</div>'; return; }
+  box.innerHTML = `<div class="mermaid">${graphDef}</div>`;
+  try { mermaid.init(undefined, box.querySelector('.mermaid')); }
+  catch(e) { box.innerHTML = `<pre style="color:#7a9bbe;font-size:11px">${graphDef}</pre>`; }
+}
+
+async function approveAnalysis() {
+  showStatus('s3Status','load',
+    '<span class="spin"></span> Generating gap questions...');
+
+  await fetch(`/sessions/${currentSessionId}/analyse/approve`,{method:'POST'});
+
+  const res  = await fetch(
+    `/sessions/${currentSessionId}/gaps/questions`,{method:'POST'});
+  const data = await res.json();
+  if(!res.ok) return showStatus('s3Status','err',data.detail);
+
+  renderGapQuestions(data.questions);
+  showStatus('s3Status','ok','✅ Gap questions ready');
+  goToStage(4);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// STAGE 4 — GAP FILLING
+// ═══════════════════════════════════════════════════════════════
+function renderGapQuestions(questions) {
+  const container = document.getElementById('gapQuestionsContainer');
+  container.innerHTML = '';
+  if(!questions.length){
+    container.innerHTML = '<div class="empty-state">No gaps identified — your analysis is comprehensive!</div>';
+    return;
+  }
+  questions.forEach(q => {
+    const priCls = q.priority==='High' ? 'tag-high' :
+                   q.priority==='Medium' ? 'tag-med' : 'tag-low';
+    container.innerHTML += `
+      <div class="q-card">
+        <div class="q-text">[${q.id}] ${q.question}</div>
+        <div style="margin:4px 0 6px;">
+          <span class="q-tag ${priCls}">${q.priority} Priority</span>
+          <span class="q-tag tag-info">System: ${q.directed_to_system}</span>
+          <span class="q-tag tag-info">Ask: ${q.directed_to_stakeholder}</span>
+        </div>
+        <div class="q-why">Why needed: ${q.why_needed}</div>
+        <textarea id="gap-${q.id}" rows="2"
+          placeholder="Your answer (or leave blank to skip)..."></textarea>
+      </div>`;
+  });
+}
+
+async function submitGapAnswers() {
+  const session = await getSession();
+  if(!session) return;
+
+  const questions = session.gap_questions || [];
+  const answers   = {};
+  questions.forEach(q => {
+    const el = document.getElementById(`gap-${q.id}`);
+    if(el && el.value.trim()) answers[q.id] = el.value.trim();
+  });
+
+  showStatus('s4Status','load',
+    '<span class="spin"></span> Saving answers and assessing clarity...');
+
+  await fetch(`/sessions/${currentSessionId}/gaps/answers`,{
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({answers})
+  });
+
+  const res  = await fetch(
+    `/sessions/${currentSessionId}/gaps/assess`,{method:'POST'});
+  const data = await res.json();
+  if(!res.ok) return showStatus('s4Status','err',data.detail);
+
+  renderClarityAssessment(data);
+  showStatus('s4Status','ok','✅ Clarity assessed');
+}
+
+function renderClarityAssessment(data) {
+  const card    = document.getElementById('clarityCard');
+  const content = document.getElementById('clarityContent');
+  const actions = document.getElementById('clarityActions');
+
+  const score    = data.clarity_score || 0;
+  const color    = score >= 75 ? '#16a34a' : score >= 60 ? '#d4a017' : '#dc2626';
+  const sufficient = data.sufficient;
+
+  content.innerHTML = `
+    <div style="margin-bottom:12px;">
+      <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
+        <span style="font-size:13px;color:#e8f0f8;">Clarity Score</span>
+        <span style="font-size:18px;font-weight:700;color:${color}">${score}%</span>
+      </div>
+      <div class="clarity-bar">
+        <div class="clarity-fill"
+             style="width:${score}%;background:${color}"></div>
+      </div>
+      <div style="font-size:12px;color:#7a9bbe;margin-top:8px;">${data.reasoning||''}</div>
+    </div>
+    <div style="font-size:12px;margin-bottom:8px;">
+      <strong style="color:${sufficient?'#86efac':'#fcd34d'}">
+        ${data.recommendation}
+      </strong>
+    </div>
+    ${(data.remaining_risks||[]).length ? `
+      <div style="margin-bottom:8px;">
+        <div style="font-size:11px;color:#7a9bbe;margin-bottom:4px;">REMAINING RISKS:</div>
+        ${data.remaining_risks.map(r=>`<div style="font-size:12px;color:#f87171;">• ${r}</div>`).join('')}
+      </div>` : ''}
+    ${(data.assumptions_to_note||[]).length ? `
+      <div>
+        <div style="font-size:11px;color:#7a9bbe;margin-bottom:4px;">ASSUMPTIONS:</div>
+        ${data.assumptions_to_note.map(a=>`<div style="font-size:12px;color:#fcd34d;">• ${a}</div>`).join('')}
+      </div>` : ''}
+  `;
+
+  actions.innerHTML = sufficient
+    ? `<button class="btn btn-gold" onclick="confirmAndProceed()">
+         ✅ Confirmed — Proceed to Requirements
+       </button>`
+    : `<button class="btn btn-navy" onclick="confirmAndProceed()">
+         ⚠️ Proceed Anyway (gaps noted)
+       </button>
+       <button class="btn btn-gold" onclick="moreAnswers()">
+         💬 Answer More Questions
+       </button>`;
+
+  card.style.display = 'block';
+}
+
+async function confirmAndProceed() {
+  showStatus('s4Status','load',
+    '<span class="spin"></span> Extracting requirements...');
+
+  await fetch(`/sessions/${currentSessionId}/gaps/confirm`,{method:'POST'});
+
+  const res  = await fetch(
+    `/sessions/${currentSessionId}/requirements/extract`,{method:'POST'});
+  const data = await res.json();
+  if(!res.ok) return showStatus('s4Status','err',data.detail);
+
+  currentRequirements = data.requirements;
+  renderRequirements(data.requirements);
+  showStatus('s4Status','ok','✅ Requirements extracted');
+  goToStage(5);
+}
+
+function moreAnswers() {
+  document.getElementById('clarityCard').style.display = 'none';
+  showStatus('s4Status','ok','Answer more questions above and re-submit');
+}
+
+// ═══════════════════════════════════════════════════════════════
+// STAGE 5 — REQUIREMENTS
+// ═══════════════════════════════════════════════════════════════
+function renderRequirements(requirements) {
+  const container = document.getElementById('requirementsContainer');
+  container.innerHTML = '';
+  requirements.forEach(req => {
+    const confCls = req.confidence==='High' ? 'tag-info' :
+                    req.confidence==='Medium' ? 'tag-med' : 'tag-high';
+    container.innerHTML += `
+      <div class="req-card" id="req-${req.id}">
+        <div class="req-header">
+          <span class="req-id">${req.id}</span>
+          <span class="req-type">${req.type}</span>
+          <span class="q-tag ${confCls}">${req.confidence} confidence</span>
+          <span style="margin-left:auto;font-size:11px;color:#3a5470"
+                id="status-${req.id}">Pending</span>
+        </div>
+        <div class="req-text">${req.text}</div>
+        <div class="req-rationale">Rationale: ${req.rationale}</div>
+        <div class="req-actions">
+          <button class="btn btn-green"
+            style="font-size:11px;padding:5px 12px"
+            onclick="updateReq('${req.id}','accepted')">✅ Accept</button>
+          <button class="btn btn-navy"
+            style="font-size:11px;padding:5px 12px"
+            onclick="toggleEdit('${req.id}')">✏️ Edit</button>
+          <button class="btn btn-red"
+            style="font-size:11px;padding:5px 12px"
+            onclick="updateReq('${req.id}','rejected')">❌ Reject</button>
+        </div>
+        <div class="req-edit-box" id="edit-${req.id}">
+          <textarea id="edittext-${req.id}" rows="2"
+            placeholder="Type your edited requirement...">${req.text}</textarea>
+          <button class="btn btn-gold"
+            style="margin-top:6px;font-size:11px;padding:5px 12px"
+            onclick="submitEdit('${req.id}')">💾 Save Edit</button>
+        </div>
+      </div>`;
+  });
+  updateReqSummary();
+}
+
+function toggleEdit(reqId) {
+  const box = document.getElementById(`edit-${reqId}`);
+  box.classList.toggle('show');
+}
+
+async function submitEdit(reqId) {
+  const text = document.getElementById(`edittext-${reqId}`).value.trim();
+  if(!text) return;
+  await updateReq(reqId, 'edited', text);
+  document.getElementById(`edit-${reqId}`).classList.remove('show');
+}
+
+async function updateReq(reqId, status, editedText='') {
+  await fetch(`/sessions/${currentSessionId}/requirements/update`,{
+    method:'PUT', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({req_id:reqId, status, edited_text:editedText})
+  });
+
+  const card = document.getElementById(`req-${reqId}`);
+  card.className = `req-card ${status}`;
+
+  const statusEl = document.getElementById(`status-${reqId}`);
+  statusEl.textContent = status.charAt(0).toUpperCase() + status.slice(1);
+  statusEl.style.color = status==='accepted' ? '#86efac' :
+                          status==='edited'   ? '#fcd34d' : '#f87171';
+
+  updateReqSummary();
+}
+
+function updateReqSummary() {
+  const cards    = document.querySelectorAll('.req-card');
+  let accepted=0, edited=0, rejected=0, pending=0;
+  cards.forEach(c => {
+    if(c.classList.contains('accepted')) accepted++;
+    else if(c.classList.contains('edited')) edited++;
+    else if(c.classList.contains('rejected')) rejected++;
+    else pending++;
+  });
+
+  document.getElementById('reqSummaryBadges').innerHTML = `
+    <span style="color:#86efac">✅ ${accepted}</span> &nbsp;
+    <span style="color:#fcd34d">✏️ ${edited}</span> &nbsp;
+    <span style="color:#f87171">❌ ${rejected}</span> &nbsp;
+    <span style="color:#3a5470">⏳ ${pending} pending</span>
+  `;
+
+  const btn = document.getElementById('generateBrdBtn');
+  btn.disabled = pending > 0;
+  if(pending===0 && (accepted+edited)>0){
+    btn.textContent = `📄 Generate BRD Preview (${accepted+edited} requirements)`;
+  }
+}
+
+async function advanceToBrd() {
+  showStatus('s5Status','load',
+    '<span class="spin"></span> Generating BRD preview...');
+
+  const advRes = await fetch(
+    `/sessions/${currentSessionId}/requirements/advance`,{method:'POST'});
+  if(!advRes.ok){
+    const d = await advRes.json();
+    return showStatus('s5Status','err',d.detail);
+  }
+
+  const res  = await fetch(
+    `/sessions/${currentSessionId}/brd/generate`,{method:'POST'});
+  const data = await res.json();
+  if(!res.ok) return showStatus('s5Status','err',data.detail);
+
+  document.getElementById('brdOutput').textContent = data.brd;
+  showStatus('s5Status','ok','✅ BRD generated');
+  goToStage(6);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// STAGE 6 — BRD
+// ═══════════════════════════════════════════════════════════════
+async function approveBrd() {
+  showStatus('s6Status','load',
+    '<span class="spin"></span> Approving BRD and generating user stories...');
+
+  await fetch(`/sessions/${currentSessionId}/brd/approve`,{method:'POST'});
+
+  const res  = await fetch(
+    `/sessions/${currentSessionId}/stories/generate`,{method:'POST'});
+  const data = await res.json();
+  if(!res.ok) return showStatus('s6Status','err',data.detail);
+
+  renderStories(data.stories);
+  showStatus('s6Status','ok','✅ User stories generated');
+  goToStage(7);
+}
+
+function showFeedbackBox() {
+  const box = document.getElementById('feedbackBox');
+  box.style.display = box.style.display==='none' ? 'block' : 'none';
+}
+
+async function regenerateBrd() {
+  const feedback = document.getElementById('brdFeedback').value.trim();
+  if(!feedback) return;
+
+  showStatus('s6Status','load',
+    '<span class="spin"></span> Regenerating BRD with your feedback...');
+
+  const res  = await fetch(
+    `/sessions/${currentSessionId}/brd/regenerate`,{
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({feedback})
+  });
+  const data = await res.json();
+  if(!res.ok) return showStatus('s6Status','err',data.detail);
+
+  document.getElementById('brdOutput').textContent = data.brd;
+  document.getElementById('feedbackBox').style.display = 'none';
+  showStatus('s6Status','ok','✅ BRD regenerated');
+}
+
+// ═══════════════════════════════════════════════════════════════
+// STAGE 7 — USER STORIES
+// ═══════════════════════════════════════════════════════════════
+function renderStories(stories) {
+  const container = document.getElementById('storiesContainer');
+  container.innerHTML = '';
+
+  if(!stories.length){
+    container.innerHTML = '<div class="empty-state">No stories generated</div>';
+    return;
+  }
+
+  stories.forEach(s => {
+    const priCls = s.priority==='Critical' ? 'tag-high' :
+                   s.priority==='High' ? 'tag-high' :
+                   s.priority==='Medium' ? 'tag-med' : 'tag-low';
+    const tags = (s.tags||[]).map(t=>
+      `<span class="story-tag">${t}</span>`).join('');
+    const criteria = (s.acceptance_criteria||[]).map(ac=>
+      `<div class="story-ac-item">${ac}</div>`).join('');
+
+    container.innerHTML += `
+      <div class="story-card">
+        <div class="story-header">
+          <span class="story-id">${s.id}</span>
+          <span class="story-parent">→ ${s.parent_req}</span>
+          <span class="q-tag ${priCls}" style="margin-left:auto">
+            ${s.priority}
+          </span>
+          <span class="q-tag tag-info">${s.story_points} pts</span>
+        </div>
+        <div class="story-title">${s.title}</div>
+        <div class="story-format">
+          <div>👤 <strong>As a</strong> ${s.as_a}</div>
+          <div>🎯 <strong>I want</strong> ${s.i_want}</div>
+          <div>💡 <strong>So that</strong> ${s.so_that}</div>
+        </div>
+        <div class="story-ac">
+          <div class="story-ac-title">Acceptance Criteria</div>
+          ${criteria}
+        </div>
+        <div class="story-meta">${tags}</div>
+        ${s.notes?`<div style="font-size:11px;color:#7a9bbe;margin-top:8px">📝 ${s.notes}</div>`:''}
+      </div>`;
+  });
+}
+
+async function exportCsv() {
+  window.open(`/sessions/${currentSessionId}/stories/csv`,'_blank');
+}
+
+async function markComplete() {
+  await fetch(`/sessions/${currentSessionId}/complete`,{method:'POST'});
+  showStatus('s7Status','ok',
+    '🏁 Session marked complete! Find it in the Sessions tab.');
+}
+
+// ═══════════════════════════════════════════════════════════════
+// SESSIONS TAB
+// ═══════════════════════════════════════════════════════════════
+async function loadSessions() {
+  const res  = await fetch('/sessions');
+  const data = await res.json();
+  const el   = document.getElementById('sessionsList');
+
+  if(!data.length){
+    el.innerHTML = '<div class="empty-state">No sessions yet. Start an analysis in the Analyse tab.</div>';
+    return;
+  }
+
+  const stageColors = {
+    1:'#3a5470', 2:'#5b21b6', 3:'#0e7490',
+    4:'#92400e', 5:'#166534', 6:'#d4a017', 7:'#d4a017', 8:'#16a34a'
+  };
+
+  el.innerHTML = '';
+  data.forEach(s => {
+    const color = stageColors[s.stage] || '#3a5470';
+    el.innerHTML += `
+      <div class="session-card" onclick="resumeSession('${s.session_id}')">
+        <div class="session-meta">
+          <span style="font-size:12px;font-weight:700;
+                       color:${color};background:${color}22;
+                       padding:2px 8px;border-radius:10px;">
+            Stage ${s.stage}: ${s.stage_name}
+          </span>
+          <span style="font-size:11px;color:#3a5470;margin-left:auto">
+            ${s.updated_at}
+          </span>
+          <span style="font-size:11px;color:#3a5470">
+            ID: ${s.session_id}
+          </span>
+        </div>
+        <div class="session-problem">${s.problem_raw}</div>
+      </div>`;
+  });
+}
+
+async function resumeSession(sessionId) {
+  showTab('analyse', document.querySelector('.tab'));
+  currentSessionId = sessionId;
+
+  const res  = await fetch(`/sessions/${sessionId}`);
+  const data = await res.json();
+
+  // Restore the correct stage
+  const stage = data.stage;
+  goToStage(stage);
+
+  // Restore stage-specific UI state
+  if(stage >= 2 && data.clarifying_questions?.length) {
+    renderQuestions(data.clarifying_questions);
+    if(data.problem_refined) {
+      document.getElementById('refinedProblemText').value = data.problem_refined;
+      document.getElementById('refinedProblemCard').style.display = 'block';
+    }
+  }
+  if(stage >= 3) {
+    renderAnalysis({
+      impacted_systems:      data.impacted_systems,
+      impacted_stakeholders: data.impacted_stakeholders,
+      existing_process:      data.existing_process
+    }, data.system_graph);
+  }
+  if(stage >= 4 && data.gap_questions?.length) {
+    renderGapQuestions(data.gap_questions);
+  }
+  if(stage >= 5 && data.requirements?.length) {
+    currentRequirements = data.requirements;
+    renderRequirements(data.requirements);
+    // Restore statuses
+    data.requirements.forEach(r => {
+      if(r.status !== 'pending') updateReq(r.id, r.status, r.edited_text);
+    });
+  }
+  if(stage >= 6 && data.brd_draft) {
+    document.getElementById('brdOutput').textContent = data.brd_draft;
+  }
+  if(stage >= 7 && data.user_stories?.length) {
+    renderStories(data.user_stories);
+  }
+
+  // Switch to analyse tab
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.querySelector('.tab').classList.add('active');
+  document.querySelectorAll('.tab-content').forEach(t=>t.classList.remove('active'));
+  document.getElementById('tab-analyse').classList.add('active');
+}
+
+// ═══════════════════════════════════════════════════════════════
+// KNOWLEDGE BASE TAB
+// ═══════════════════════════════════════════════════════════════
 async function refreshSystems() {
-  try {
-    const res = await fetch('/systems');
-    systems = await res.json();
-    populateSystemDropdowns();
-    renderSystemsList();
-  } catch(e) { console.error('Failed to load systems', e); }
+  const res = await fetch('/systems');
+  systems = await res.json();
+  populateAllDropdowns();
+  renderSystemsPills();
 }
 
-function populateSystemDropdowns() {
+function populateAllDropdowns() {
   const keys = Object.keys(systems);
 
-  // Generate tab dropdowns
-  const genSys = document.getElementById('genSystem');
-  genSys.innerHTML = '<option value="">All Systems</option>';
-  keys.forEach(s => genSys.innerHTML += `<option value="${s}">${s}</option>`);
+  // Stage 1 dropdowns
+  const s1 = document.getElementById('s1System');
+  if(s1){
+    s1.innerHTML = '<option value="">All Systems</option>';
+    keys.forEach(k => s1.innerHTML += `<option value="${k}">${k}</option>`);
+  }
 
-  // Upload tab dropdowns
-  const upSys = document.getElementById('upSystem');
-  upSys.innerHTML = '<option value="">— Select a System —</option>';
-  keys.forEach(s => upSys.innerHTML += `<option value="${s}">${s}</option>`);
+  // Upload dropdowns
+  const up = document.getElementById('upSystem');
+  if(up){
+    up.innerHTML = '<option value="">— Select System —</option>';
+    keys.forEach(k => up.innerHTML += `<option value="${k}">${k}</option>`);
+  }
 
-  // Manage Systems tab dropdown
-  const srcSys = document.getElementById('srcSystem');
-  srcSys.innerHTML = '';
-  keys.forEach(s => srcSys.innerHTML += `<option value="${s}">${s}</option>`);
+  // Source for systems manager
+  const ss = document.getElementById('srcSystem');
+  if(ss){
+    ss.innerHTML = '';
+    keys.forEach(k => ss.innerHTML += `<option value="${k}">${k}</option>`);
+  }
 }
 
-function loadGenSources() {
-  const sys = document.getElementById('genSystem').value;
-  const src = document.getElementById('genSource');
+function loadS1Sources() {
+  const sys = document.getElementById('s1System').value;
+  const src = document.getElementById('s1Source');
   src.innerHTML = '<option value="">All Sources</option>';
-  if (sys && systems[sys]) {
-    systems[sys].forEach(s => src.innerHTML += `<option value="${s}">${s}</option>`);
-  }
+  if(sys && systems[sys])
+    systems[sys].forEach(s => src.innerHTML += `<option>${s}</option>`);
 }
 
 function loadUploadSources() {
   const sys = document.getElementById('upSystem').value;
   const src = document.getElementById('upSource');
-  src.innerHTML = '<option value="">— Select a Source —</option>';
-  if (sys && systems[sys]) {
-    systems[sys].forEach(s => src.innerHTML += `<option value="${s}">${s}</option>`);
+  src.innerHTML = '<option value="">— Select Source —</option>';
+  if(sys && systems[sys])
+    systems[sys].forEach(s => src.innerHTML += `<option>${s}</option>`);
+}
+
+function renderSystemsPills() {
+  const el = document.getElementById('systemsPills');
+  if(!el) return;
+  let html = '';
+  for(const [sys, srcs] of Object.entries(systems)) {
+    html += `<div style="margin-bottom:10px;">
+      <div style="font-size:12px;font-weight:700;color:#d4a017;margin-bottom:4px;">
+        🏢 ${sys}
+      </div>
+      <div style="margin-left:12px;">
+        ${srcs.map(s=>`<span class="pill">📁 ${s}</span>`).join('')
+          || '<span style="color:#3a5470;font-size:11px;">No sources yet</span>'}
+      </div>
+    </div>`;
   }
+  el.innerHTML = html || '<div class="empty-state">No systems yet</div>';
 }
 
 async function addSystem() {
   const name = document.getElementById('newSystemName').value.trim();
-  if (!name) return showStatus('sysStatus','err','Please enter a system name');
-
-  const res  = await fetch('/systems/add', {
+  if(!name) return showStatus('sysStatus','err','Enter a system name');
+  const res  = await fetch('/systems/add',{
     method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({system_name: name})
+    body: JSON.stringify({system_name:name})
   });
   const data = await res.json();
-  if (res.ok) {
-    showStatus('sysStatus','ok', data.message);
+  if(res.ok){
+    showStatus('sysStatus','ok',data.message);
     document.getElementById('newSystemName').value = '';
     await refreshSystems();
   } else {
-    showStatus('sysStatus','err', data.detail);
+    showStatus('sysStatus','err',data.detail);
   }
 }
 
 async function addSource() {
   const sys = document.getElementById('srcSystem').value;
   const src = document.getElementById('newSourceName').value.trim();
-  if (!sys) return showStatus('srcStatus','err','Please select a system first');
-  if (!src) return showStatus('srcStatus','err','Please enter a source type name');
-
-  const res  = await fetch('/systems/add-source', {
+  if(!sys) return showStatus('sysStatus','err','Select a system first');
+  if(!src) return showStatus('sysStatus','err','Enter a source name');
+  const res  = await fetch('/systems/add-source',{
     method:'POST', headers:{'Content-Type':'application/json'},
     body: JSON.stringify({system_name:sys, source_type:src})
   });
   const data = await res.json();
-  if (res.ok) {
-    showStatus('srcStatus','ok', data.message);
+  if(res.ok){
+    showStatus('sysStatus','ok',data.message);
     document.getElementById('newSourceName').value = '';
     await refreshSystems();
   } else {
-    showStatus('srcStatus','err', data.detail);
+    showStatus('sysStatus','err',data.detail);
   }
 }
 
-function renderSystemsList() {
-  const el = document.getElementById('systemsList');
-  if (!Object.keys(systems).length) {
-    el.innerHTML = '<p style="color:#3a5470;font-size:13px;">No systems yet. Add one above.</p>';
-    return;
-  }
-  let html = '';
-  for (const [sys, srcs] of Object.entries(systems)) {
-    html += `<div style="margin-bottom:16px;">
-      <div style="font-weight:700;color:#d4a017;margin-bottom:8px;">🏢 ${sys}</div>
-      <div style="margin-left:20px;">`;
-    if (srcs.length === 0) {
-      html += `<span style="color:#3a5470;font-size:12px;">No sources yet</span>`;
-    } else {
-      srcs.forEach(s => {
-        html += `<span class="pill">📁 ${s}</span>`;
-      });
-    }
-    html += `</div></div>`;
-  }
-  el.innerHTML = html;
-}
-
-// ── File Upload ────────────────────────────────────────────────
-function handleFileSelect(input) {
-  if (input.files[0]) setFile(input.files[0]);
-}
-
+// ── Upload ──────────────────────────────────────────────────────
+function handleFileSelect(input) { if(input.files[0]) setFile(input.files[0]); }
 function handleDrop(e) {
   e.preventDefault();
   document.getElementById('uploadZone').classList.remove('drag');
-  if (e.dataTransfer.files[0]) setFile(e.dataTransfer.files[0]);
+  if(e.dataTransfer.files[0]) setFile(e.dataTransfer.files[0]);
 }
-
 function setFile(file) {
   selectedFile = file;
-  document.getElementById('fileName').textContent = `📄 ${file.name} (${(file.size/1024).toFixed(1)} KB)`;
+  document.getElementById('fileName').textContent =
+    `📄 ${file.name} (${(file.size/1024).toFixed(1)} KB)`;
   document.getElementById('uploadZone').style.borderColor = '#d4a017';
 }
 
 async function uploadDocument() {
-  const sys  = document.getElementById('upSystem').value;
-  const src  = document.getElementById('upSource').value;
-  const btn  = document.getElementById('uploadBtn');
+  const sys = document.getElementById('upSystem').value;
+  const src = document.getElementById('upSource').value;
+  const btn = document.getElementById('uploadBtn');
+  if(!sys) return showStatus('uploadStatus','err','Select a system');
+  if(!src) return showStatus('uploadStatus','err','Select a source');
+  if(!selectedFile) return showStatus('uploadStatus','err','Select a file');
 
-  if (!sys)          return showStatus('uploadStatus','err','Please select a System');
-  if (!src)          return showStatus('uploadStatus','err','Please select a Source Type');
-  if (!selectedFile) return showStatus('uploadStatus','err','Please select a file to upload');
-
-  btn.disabled  = true;
-  btn.innerHTML = '<span class="spin"></span> Uploading & indexing...';
-  showStatus('uploadStatus','load','<span class="spin"></span> Chunking, embedding, storing in Azure AI Search...');
+  btn.disabled = true;
+  btn.textContent = 'Uploading...';
+  showStatus('uploadStatus','load',
+    '<span class="spin"></span> Chunking, embedding and indexing...');
 
   const form = new FormData();
-  form.append('file',        selectedFile);
+  form.append('file', selectedFile);
   form.append('system_name', sys);
   form.append('source_type', src);
 
   try {
-    const res  = await fetch('/upload', { method:'POST', body:form });
+    const res  = await fetch('/upload',{method:'POST',body:form});
     const data = await res.json();
-
-    if (res.ok) {
+    if(res.ok){
       showStatus('uploadStatus','ok', data.message);
       selectedFile = null;
       document.getElementById('fileName').textContent = 'Drag & drop or click to browse';
       document.getElementById('uploadZone').style.borderColor = '#162b50';
       document.getElementById('fileInput').value = '';
-      await loadKnowledgeBase();
+      await loadDocTree();
     } else {
       showStatus('uploadStatus','err', data.detail);
     }
   } catch(e) {
-    showStatus('uploadStatus','err', 'Upload failed: ' + e.message);
+    showStatus('uploadStatus','err','Upload failed: '+e.message);
   }
-
-  btn.disabled  = false;
-  btn.innerHTML = '📤 Upload & Index Document';
+  btn.disabled = false;
+  btn.textContent = '📤 Upload & Index';
 }
 
-// ── Knowledge Base Tree ────────────────────────────────────────
-async function loadKnowledgeBase() {
-  const tree = document.getElementById('docTree');
-  try {
-    const res  = await fetch('/documents');
-    const data = await res.json();
+async function loadDocTree() {
+  const el  = document.getElementById('docTree');
+  if(!el) return;
+  const res  = await fetch('/documents');
+  const data = await res.json();
 
-    if (!Object.keys(data).length) {
-      tree.innerHTML = '<div class="empty-tree">📭 No documents indexed yet.<br>Upload documents using the Upload tab.</div>';
-      return;
-    }
-
-    let html = '';
-    for (const [sys, sources] of Object.entries(data)) {
-      let totalDocs = Object.values(sources).reduce((a,b) => a+b.length, 0);
-      html += `<div class="tree-system">
-        <div class="tree-system-hdr">
-          🏢 ${sys}
-          <span class="doc-badge">${totalDocs} doc${totalDocs!==1?'s':''}</span>
-        </div>`;
-
-      for (const [src, docs] of Object.entries(sources)) {
-        html += `<div class="tree-source">
-          <div class="tree-source-hdr">
-            📁 ${src}
-            <span class="doc-badge">${docs.length}</span>
-          </div>`;
-
-        docs.forEach(doc => {
-          html += `<div class="tree-doc">
-            <div>
-              <div>📄 ${doc.document_name}</div>
-              <div class="tree-doc-meta">
-                ${doc.chunks} chunks · ${doc.file_size_kb}KB · ${doc.upload_date} ${doc.upload_time}
-              </div>
-            </div>
-            <button class="btn btn-red" style="font-size:11px;padding:4px 10px;"
-                    onclick="removeDoc('${doc.id}','${doc.document_name}')">✕</button>
-          </div>`;
-        });
-        html += '</div>';
-      }
-      html += '</div>';
-    }
-    tree.innerHTML = html;
-  } catch(e) {
-    tree.innerHTML = '<div class="empty-tree">Error loading knowledge base</div>';
+  if(!Object.keys(data).length){
+    el.innerHTML = '<div class="empty-state">📭 No documents indexed yet.<br>Upload documents above.</div>';
+    return;
   }
+
+  let html = '';
+  for(const [sys, sources] of Object.entries(data)){
+    const total = Object.values(sources).reduce((a,b)=>a+b.length,0);
+    html += `<div style="margin-bottom:14px;">
+      <div class="tree-system-hdr">
+        🏢 ${sys}
+        <span class="doc-badge">${total} doc${total!==1?'s':''}</span>
+      </div>`;
+    for(const [src, docs] of Object.entries(sources)){
+      html += `<div class="tree-source-hdr">
+        📁 ${src} <span class="doc-badge">${docs.length}</span>
+      </div>`;
+      docs.forEach(doc => {
+        html += `<div class="tree-doc">
+          <div>
+            <div>📄 ${doc.document_name}</div>
+            <div class="tree-doc-meta">
+              ${doc.chunks} chunks · ${doc.file_size_kb}KB · ${doc.upload_date}
+            </div>
+          </div>
+          <button class="btn btn-red"
+            style="font-size:11px;padding:3px 8px"
+            onclick="removeDoc('${doc.id}','${doc.document_name}')">✕</button>
+        </div>`;
+      });
+    }
+    html += '</div>';
+  }
+  el.innerHTML = html;
 }
 
 async function removeDoc(id, name) {
-  if (!confirm(`Remove "${name}" from the registry?`)) return;
-  await fetch(`/documents/${id}`, {method:'DELETE'});
-  await loadKnowledgeBase();
+  if(!confirm(`Remove "${name}" from registry?`)) return;
+  await fetch(`/documents/${id}`,{method:'DELETE'});
+  await loadDocTree();
 }
 
-// ── BRD Generation ─────────────────────────────────────────────
-async function generateBRD() {
-  const problem = document.getElementById('problemInput').value.trim();
-  const sys     = document.getElementById('genSystem').value;
-  const src     = document.getElementById('genSource').value;
-  const btn     = document.getElementById('generateBtn');
-  const output  = document.getElementById('brdOutput');
-
-  if (!problem || problem.length < 20)
-    return showStatus('genStatus','err','Please describe your problem in more detail');
-
-  btn.disabled  = true;
-  btn.innerHTML = '<span class="spin"></span> Generating BRD...';
-  output.className = 'brd-output empty';
-  output.textContent = '⏳ Searching knowledge base and generating BRD...';
-  showStatus('genStatus','load','<span class="spin"></span> This takes 15–30 seconds...');
-
-  try {
-    const res  = await fetch('/generate', {
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({
-        problem:     problem,
-        system_name: sys  || null,
-        source_type: src  || null
-      })
-    });
-    const data = await res.json();
-
-    if (res.ok) {
-      lastBRD = data.brd;
-      output.className  = 'brd-output';
-      output.textContent = data.brd;
-      showStatus('genStatus','ok','✅ BRD generated successfully with citations!');
-    } else {
-      throw new Error(data.detail);
-    }
-  } catch(e) {
-    output.className  = 'brd-output empty';
-    output.textContent = 'Your BRD will appear here...';
-    showStatus('genStatus','err','❌ ' + e.message);
-  }
-
-  btn.disabled  = false;
-  btn.innerHTML = '⚡ Generate BRD';
+// ── Helpers ─────────────────────────────────────────────────────
+async function getSession() {
+  if(!currentSessionId) return null;
+  const res = await fetch(`/sessions/${currentSessionId}`);
+  return res.ok ? await res.json() : null;
 }
 
-function copyBRD() {
-  if (!lastBRD) return alert('Generate a BRD first!');
-  navigator.clipboard.writeText(lastBRD)
-    .then(() => alert('✅ Copied to clipboard!'));
+function copyText(elId) {
+  const text = document.getElementById(elId).textContent;
+  navigator.clipboard.writeText(text).then(()=>alert('✅ Copied!'));
 }
 
-function saveBRD() {
-  if (!lastBRD) return alert('Generate a BRD first!');
-  const blob = new Blob([lastBRD], {type:'text/markdown'});
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = `BRD_${new Date().toISOString().slice(0,10)}.md`;
-  a.click();
-}
-
-// ── Helpers ────────────────────────────────────────────────────
 function showStatus(id, type, msg) {
   const el = document.getElementById(id);
+  if(!el) return;
   el.className = `status show ${type}`;
   el.innerHTML = msg;
 }
-
-// Ctrl+Enter to generate
-document.addEventListener('keydown', e => {
-  if (e.ctrlKey && e.key==='Enter') generateBRD();
-});
 </script>
 </body>
 </html>
