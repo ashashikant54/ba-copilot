@@ -1,0 +1,22 @@
+{
+  "HR System": [
+    "SharePoint",
+    "Azure DevOps",
+    "Database"
+  ],
+  "Finance System": [
+    "SharePoint",
+    "Database"
+  ],
+  "IT System": [
+    "Azure DevOps",
+    "Meeting Recordings"
+  ],
+  "Operations System": [
+    "SharePoint",
+    "Email"
+  ],
+  "Polaris": [
+    "Sharepoint"
+  ]
+}

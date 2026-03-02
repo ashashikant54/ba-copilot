@@ -1,402 +1,662 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>BA Copilot — MVP</title>
-    <style>
-        /* ── Reset & Base ── */
-        * { margin: 0; padding: 0; box-sizing: border-box; }
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>BA Copilot — Phase 1</title>
+  <style>
+    /* ── Reset ── */
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body { font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+           background:#060d1a; color:#e8f0f8; min-height:100vh; }
 
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-            background: #0a1628;
-            color: #e8f0f8;
-            min-height: 100vh;
-        }
+    /* ── Header ── */
+    header { background:#0a1628; border-bottom:3px solid #d4a017;
+             padding:14px 32px; display:flex; align-items:center; gap:16px; }
+    header h1 { font-size:22px; color:#d4a017; font-weight:700; }
+    header p  { font-size:12px; color:#7a9bbe; margin-top:2px; }
+    .badge    { background:#d4a017; color:#0a1628; font-size:11px;
+                font-weight:700; padding:3px 10px; border-radius:20px; margin-left:auto; }
 
-        /* ── Header ── */
-        header {
-            background: #0f2040;
-            border-bottom: 3px solid #d4a017;
-            padding: 20px 40px;
-            display: flex;
-            align-items: center;
-            gap: 16px;
-        }
+    /* ── Tab Bar ── */
+    .tabs { background:#0a1628; display:flex; border-bottom:2px solid #162b50; }
+    .tab  { padding:12px 28px; font-size:13px; font-weight:600; cursor:pointer;
+            color:#7a9bbe; border-bottom:3px solid transparent; transition:.2s;
+            margin-bottom:-2px; }
+    .tab.active { color:#d4a017; border-bottom-color:#d4a017; }
+    .tab:hover  { color:#e8f0f8; }
 
-        header h1 {
-            font-size: 24px;
-            color: #d4a017;
-            font-weight: 700;
-        }
+    /* ── Tab Content ── */
+    .tab-content { display:none; padding:28px 32px; }
+    .tab-content.active { display:block; }
 
-        header p {
-            font-size: 13px;
-            color: #7a9bbe;
-            margin-top: 2px;
-        }
+    /* ── Cards ── */
+    .card { background:#0f2040; border-radius:12px; padding:24px;
+            border:1px solid #162b50; margin-bottom:20px; }
+    .card h2 { font-size:13px; font-weight:700; color:#d4a017;
+               text-transform:uppercase; letter-spacing:1px; margin-bottom:16px; }
 
-        .badge {
-            background: #d4a017;
-            color: #0a1628;
-            font-size: 11px;
-            font-weight: 700;
-            padding: 3px 10px;
-            border-radius: 20px;
-            margin-left: auto;
-        }
+    /* ── Grid ── */
+    .grid-2 { display:grid; grid-template-columns:1fr 1fr; gap:20px; }
+    .grid-3 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:20px; }
 
-        /* ── Main Layout ── */
-        .container {
-            max-width: 1100px;
-            margin: 40px auto;
-            padding: 0 24px;
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 28px;
-        }
+    /* ── Form Elements ── */
+    input, select, textarea {
+      width:100%; background:#060d1a; border:1px solid #162b50;
+      border-radius:8px; color:#e8f0f8; font-size:13px; padding:10px 14px;
+      font-family:inherit; transition:border-color .2s;
+    }
+    input:focus, select:focus, textarea:focus
+      { outline:none; border-color:#d4a017; }
+    input::placeholder, textarea::placeholder { color:#3a5470; }
+    select option { background:#0a1628; }
+    label { display:block; font-size:11px; color:#7a9bbe;
+            font-weight:600; margin-bottom:6px; text-transform:uppercase;
+            letter-spacing:.5px; }
 
-        /* ── Cards ── */
-        .card {
-            background: #0f2040;
-            border-radius: 12px;
-            padding: 28px;
-            border: 1px solid #162b50;
-        }
+    /* ── Buttons ── */
+    .btn { padding:10px 20px; border:none; border-radius:8px; font-size:13px;
+           font-weight:700; cursor:pointer; transition:.2s; }
+    .btn-gold  { background:#d4a017; color:#0a1628; }
+    .btn-gold:hover { background:#f0c040; }
+    .btn-navy  { background:#162b50; color:#7a9bbe; border:1px solid #162b50; }
+    .btn-navy:hover { background:#1e3a6e; color:#e8f0f8; }
+    .btn-red   { background:#7f1d1d; color:#fca5a5; }
+    .btn-red:hover { background:#991b1b; }
+    .btn:disabled { background:#3a5470; color:#7a9bbe; cursor:not-allowed; }
+    .btn-full  { width:100%; margin-top:12px; padding:13px; font-size:14px; }
 
-        .card h2 {
-            font-size: 14px;
-            font-weight: 700;
-            color: #d4a017;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            margin-bottom: 16px;
-        }
+    /* ── Upload Zone ── */
+    .upload-zone {
+      border:2px dashed #162b50; border-radius:10px; padding:32px;
+      text-align:center; cursor:pointer; transition:.2s; margin:12px 0;
+    }
+    .upload-zone:hover, .upload-zone.drag { border-color:#d4a017; background:#0a1628; }
+    .upload-zone p  { color:#3a5470; font-size:13px; margin-top:8px; }
+    .upload-zone span { font-size:32px; }
+    #fileInput { display:none; }
 
-        /* ── Input Area ── */
-        textarea {
-            width: 100%;
-            height: 220px;
-            background: #0a1628;
-            border: 1px solid #162b50;
-            border-radius: 8px;
-            color: #e8f0f8;
-            font-size: 14px;
-            padding: 16px;
-            resize: vertical;
-            font-family: inherit;
-            line-height: 1.6;
-            transition: border-color 0.2s;
-        }
+    /* ── Status Messages ── */
+    .status { margin-top:10px; padding:10px 14px; border-radius:8px;
+              font-size:12px; display:none; }
+    .status.show   { display:block; }
+    .status.ok     { background:#0a2d0a; color:#86efac; border:1px solid #16a34a; }
+    .status.err    { background:#2d0a0a; color:#f87171; border:1px solid #dc2626; }
+    .status.load   { background:#162b50; color:#7a9bbe; border:1px solid #162b50; }
 
-        textarea:focus {
-            outline: none;
-            border-color: #d4a017;
-        }
+    /* ── Spinner ── */
+    .spin { display:inline-block; width:13px; height:13px; border:2px solid #3a5470;
+            border-top-color:#d4a017; border-radius:50%;
+            animation:spin .8s linear infinite; margin-right:6px; vertical-align:middle; }
+    @keyframes spin { to { transform:rotate(360deg); } }
 
-        textarea::placeholder { color: #3a5470; }
+    /* ── Document Tree ── */
+    .tree { font-size:13px; }
+    .tree-system { margin-bottom:16px; }
+    .tree-system-hdr {
+      display:flex; align-items:center; gap:8px;
+      background:#162b50; border-radius:8px; padding:10px 14px;
+      font-weight:700; color:#d4a017; cursor:pointer;
+    }
+    .tree-source { margin:6px 0 6px 20px; }
+    .tree-source-hdr {
+      display:flex; align-items:center; gap:8px;
+      background:#0a1628; border-radius:6px; padding:8px 12px;
+      font-weight:600; color:#7a9bbe; font-size:12px;
+    }
+    .tree-doc {
+      display:flex; align-items:center; justify-content:space-between;
+      margin:4px 0 4px 40px; background:#060d1a; border-radius:6px;
+      padding:7px 12px; font-size:12px; color:#a0c4e2;
+      border:1px solid #0f2040;
+    }
+    .tree-doc-meta { color:#3a5470; font-size:11px; margin-top:2px; }
+    .doc-badge { background:#162b50; color:#7a9bbe; font-size:10px;
+                 padding:2px 7px; border-radius:10px; margin-left:6px; }
+    .empty-tree { color:#3a5470; font-size:13px; padding:20px; text-align:center; }
 
-        /* ── Button ── */
-        button {
-            width: 100%;
-            margin-top: 16px;
-            padding: 14px;
-            background: #d4a017;
-            color: #0a1628;
-            border: none;
-            border-radius: 8px;
-            font-size: 15px;
-            font-weight: 700;
-            cursor: pointer;
-            transition: background 0.2s, transform 0.1s;
-        }
+    /* ── BRD Output ── */
+    .brd-output {
+      background:#060d1a; border:1px solid #162b50; border-radius:8px;
+      padding:20px; height:480px; overflow-y:auto; font-size:13px;
+      line-height:1.7; white-space:pre-wrap; color:#c8d8e8;
+    }
+    .brd-output.empty { display:flex; align-items:center;
+                        justify-content:center; color:#3a5470; }
 
-        button:hover  { background: #f0c040; }
-        button:active { transform: scale(0.98); }
+    /* ── System Pills ── */
+    .pill { display:inline-flex; align-items:center; gap:6px;
+            background:#162b50; border-radius:20px; padding:4px 12px;
+            font-size:12px; color:#7a9bbe; margin:4px; }
+    .pill-rm { cursor:pointer; color:#3a5470; font-size:14px; }
+    .pill-rm:hover { color:#f87171; }
 
-        button:disabled {
-            background: #3a5470;
-            color: #7a9bbe;
-            cursor: not-allowed;
-        }
-
-        /* ── Status Bar ── */
-        .status {
-            margin-top: 14px;
-            padding: 10px 14px;
-            border-radius: 8px;
-            font-size: 13px;
-            display: none;
-        }
-
-        .status.loading {
-            display: block;
-            background: #162b50;
-            color: #7a9bbe;
-            border: 1px solid #162b50;
-        }
-
-        .status.error {
-            display: block;
-            background: #2d0a0a;
-            color: #f87171;
-            border: 1px solid #dc2626;
-        }
-
-        .status.success {
-            display: block;
-            background: #0a2d0a;
-            color: #86efac;
-            border: 1px solid #16a34a;
-        }
-
-        /* ── Spinner ── */
-        .spinner {
-            display: inline-block;
-            width: 14px;
-            height: 14px;
-            border: 2px solid #3a5470;
-            border-top-color: #d4a017;
-            border-radius: 50%;
-            animation: spin 0.8s linear infinite;
-            margin-right: 8px;
-            vertical-align: middle;
-        }
-
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
-
-        /* ── Output Area ── */
-        .output-box {
-            background: #0a1628;
-            border: 1px solid #162b50;
-            border-radius: 8px;
-            padding: 20px;
-            height: 520px;
-            overflow-y: auto;
-            font-size: 13.5px;
-            line-height: 1.7;
-            white-space: pre-wrap;
-            color: #c8d8e8;
-        }
-
-        .output-box.empty {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: #3a5470;
-            font-size: 14px;
-        }
-
-        /* ── Markdown-style formatting ── */
-        .output-box .section-title {
-            color: #d4a017;
-            font-weight: 700;
-            font-size: 15px;
-            margin-top: 20px;
-            margin-bottom: 6px;
-        }
-
-        /* ── Copy Button ── */
-        .copy-btn {
-            width: auto;
-            margin-top: 12px;
-            padding: 8px 20px;
-            font-size: 13px;
-            background: #162b50;
-            color: #7a9bbe;
-            border: 1px solid #162b50;
-        }
-
-        .copy-btn:hover { background: #1e3a6e; color: #e8f0f8; }
-
-        /* ── Tips ── */
-        .tips {
-            grid-column: 1 / -1;
-            background: #0f2040;
-            border: 1px solid #162b50;
-            border-radius: 12px;
-            padding: 20px 28px;
-        }
-
-        .tips h3 {
-            color: #d4a017;
-            font-size: 13px;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            margin-bottom: 12px;
-        }
-
-        .tips-grid {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 16px;
-        }
-
-        .tip {
-            font-size: 12.5px;
-            color: #7a9bbe;
-            line-height: 1.5;
-        }
-
-        .tip strong { color: #e8f0f8; display: block; margin-bottom: 4px; }
-    </style>
+    /* ── Inline form row ── */
+    .inline-row { display:flex; gap:8px; align-items:flex-end; }
+    .inline-row > div { flex:1; }
+    .inline-row .btn { flex-shrink:0; height:38px; margin-top:0; }
+  </style>
 </head>
 <body>
 
-    <!-- Header -->
-    <header>
-        <div>
-            <h1>⚡ BA Copilot</h1>
-            <p>AI-Powered Business Requirements Generator</p>
-        </div>
-        <span class="badge">MVP v1.0</span>
-    </header>
+<!-- Header -->
+<header>
+  <div>
+    <h1>⚡ BA Copilot</h1>
+    <p>AI-Powered Business Requirements Generator</p>
+  </div>
+  <span class="badge">Phase 1</span>
+</header>
 
-    <!-- Main Content -->
-    <div class="container">
+<!-- Tab Bar -->
+<div class="tabs">
+  <div class="tab active" onclick="showTab('generate')">⚡ Generate BRD</div>
+  <div class="tab" onclick="showTab('upload')">📤 Upload Documents</div>
+  <div class="tab" onclick="showTab('knowledge')">🗂 Knowledge Base</div>
+  <div class="tab" onclick="showTab('systems')">⚙️ Manage Systems</div>
+</div>
 
-        <!-- Left: Input -->
-        <div class="card">
-            <h2>📝 Your Business Problem</h2>
-            <textarea
-                id="problemInput"
-                placeholder="Describe your business problem here...
+<!-- ══════════════════════════════════════════════════
+     TAB 1 — GENERATE BRD
+══════════════════════════════════════════════════ -->
+<div id="tab-generate" class="tab-content active">
+  <div class="grid-2">
+
+    <!-- Left: Input -->
+    <div>
+      <div class="card">
+        <h2>📝 Business Problem</h2>
+        <textarea id="problemInput" rows="8"
+          placeholder="Describe your business problem here...
 
 Example:
-Our HR department currently onboards new employees using email and paper forms. This takes 2 weeks and errors occur frequently. New employees often start without proper system access. We need a digital solution."
-            ></textarea>
+Our HR department currently onboards new employees using email and paper forms. This takes 2 weeks and errors occur frequently. We need a digital solution."></textarea>
+      </div>
 
-            <button id="generateBtn" onclick="generateBRD()">
-                ⚡ Generate BRD
-            </button>
-
-            <div id="status" class="status"></div>
-
-            <!-- Tips -->
-            <div style="margin-top: 20px;">
-                <p style="font-size: 12px; color: #3a5470; margin-bottom: 8px;">
-                    💡 TIP: The more detail you provide, the better your BRD will be
-                </p>
-                <p style="font-size: 12px; color: #3a5470;">
-                    ⏱ Generation takes 15–30 seconds
-                </p>
-            </div>
+      <div class="card">
+        <h2>🔍 Filter by Source (Optional)</h2>
+        <p style="font-size:12px;color:#7a9bbe;margin-bottom:14px;">
+          Leave blank to search ALL documents. Select to narrow to a specific system or source.
+        </p>
+        <div class="grid-2" style="margin-bottom:12px;">
+          <div>
+            <label>System</label>
+            <select id="genSystem" onchange="loadGenSources()">
+              <option value="">All Systems</option>
+            </select>
+          </div>
+          <div>
+            <label>Source Type</label>
+            <select id="genSource">
+              <option value="">All Sources</option>
+            </select>
+          </div>
         </div>
-
-        <!-- Right: Output -->
-        <div class="card">
-            <h2>📄 Generated BRD</h2>
-            <div id="output" class="output-box empty">
-                Your BRD will appear here...
-            </div>
-            <button class="copy-btn" onclick="copyBRD()">
-                📋 Copy BRD
-            </button>
-        </div>
-
-        <!-- Bottom: Tips -->
-        <div class="tips">
-            <h3>💡 How to write a good problem statement</h3>
-            <div class="tips-grid">
-                <div class="tip">
-                    <strong>1. Describe the current situation</strong>
-                    What is happening right now? What process is broken or missing?
-                </div>
-                <div class="tip">
-                    <strong>2. Explain the pain points</strong>
-                    What specific problems does this cause? Who is affected?
-                </div>
-                <div class="tip">
-                    <strong>3. State what you need</strong>
-                    What kind of solution are you looking for? What should it achieve?
-                </div>
-            </div>
-        </div>
-
+        <button class="btn btn-gold btn-full" id="generateBtn" onclick="generateBRD()">
+          ⚡ Generate BRD
+        </button>
+        <div id="genStatus" class="status"></div>
+      </div>
     </div>
 
-    <script>
-        let lastBRD = "";
+    <!-- Right: Output -->
+    <div>
+      <div class="card" style="height:calc(100% - 0px)">
+        <h2>📄 Generated BRD</h2>
+        <div id="brdOutput" class="brd-output empty">
+          Your BRD will appear here...
+        </div>
+        <div style="display:flex;gap:8px;margin-top:12px;">
+          <button class="btn btn-navy" onclick="copyBRD()">📋 Copy</button>
+          <button class="btn btn-navy" onclick="saveBRD()">💾 Save .md</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
 
-        async function generateBRD() {
-            const problem = document.getElementById("problemInput").value.trim();
-            const btn     = document.getElementById("generateBtn");
-            const status  = document.getElementById("status");
-            const output  = document.getElementById("output");
+<!-- ══════════════════════════════════════════════════
+     TAB 2 — UPLOAD DOCUMENTS
+══════════════════════════════════════════════════ -->
+<div id="tab-upload" class="tab-content">
+  <div class="grid-2">
+    <div class="card">
+      <h2>📤 Upload a Document</h2>
 
-            // Validate
-            if (!problem) {
-                showStatus("error", "Please enter a business problem first.");
-                return;
-            }
-            if (problem.length < 20) {
-                showStatus("error", "Please describe your problem in more detail.");
-                return;
-            }
+      <div style="margin-bottom:14px;">
+        <label>1. Select System</label>
+        <select id="upSystem" onchange="loadUploadSources()">
+          <option value="">— Select a System —</option>
+        </select>
+      </div>
 
-            // Loading state
-            btn.disabled  = true;
-            btn.innerHTML = '<span class="spinner"></span> Generating your BRD...';
-            output.className = "output-box empty";
-            output.textContent = "⏳ Analysing your problem and searching knowledge base...";
-            showStatus("loading", '<span class="spinner"></span> Sending to GPT-4o-mini — this takes 15–30 seconds...');
+      <div style="margin-bottom:14px;">
+        <label>2. Select Source Type</label>
+        <select id="upSource">
+          <option value="">— Select a Source —</option>
+        </select>
+      </div>
 
-            try {
-                // Call our FastAPI backend
-                const response = await fetch("/generate", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ problem: problem })
-                });
+      <div>
+        <label>3. Choose File (.txt, .docx, .pdf)</label>
+        <div class="upload-zone" onclick="document.getElementById('fileInput').click()"
+             id="uploadZone"
+             ondragover="event.preventDefault();this.classList.add('drag')"
+             ondragleave="this.classList.remove('drag')"
+             ondrop="handleDrop(event)">
+          <span>📎</span>
+          <p id="fileName">Drag & drop or click to browse</p>
+          <p style="font-size:11px;margin-top:4px;">.txt  ·  .docx  ·  .pdf</p>
+        </div>
+        <input type="file" id="fileInput" accept=".txt,.docx,.pdf"
+               onchange="handleFileSelect(this)">
+      </div>
 
-                const data = await response.json();
+      <button class="btn btn-gold btn-full" id="uploadBtn" onclick="uploadDocument()">
+        📤 Upload & Index Document
+      </button>
+      <div id="uploadStatus" class="status"></div>
+    </div>
 
-                if (!response.ok) {
-                    throw new Error(data.detail || "Something went wrong");
-                }
+    <!-- Upload instructions -->
+    <div class="card">
+      <h2>💡 How It Works</h2>
+      <div style="font-size:13px;color:#7a9bbe;line-height:2;">
+        <p>📁 <strong style="color:#e8f0f8;">1. Select System</strong><br>
+           Choose which system this document belongs to.<br>
+           e.g. HR System, Finance System</p>
+        <br>
+        <p>📂 <strong style="color:#e8f0f8;">2. Select Source</strong><br>
+           Choose where this document came from.<br>
+           e.g. SharePoint, Azure DevOps, Database</p>
+        <br>
+        <p>📄 <strong style="color:#e8f0f8;">3. Upload File</strong><br>
+           Upload any .txt, .docx, or .pdf file.<br>
+           The system will automatically chunk, embed,<br>
+           and index it into Azure AI Search.</p>
+        <br>
+        <p>⚡ <strong style="color:#e8f0f8;">4. Generate BRD</strong><br>
+           Go to the Generate tab. The AI will now<br>
+           use your uploaded documents as its<br>
+           knowledge base — with full citations.</p>
+      </div>
+    </div>
+  </div>
+</div>
 
-                // Display the BRD
-                lastBRD = data.brd;
-                output.className  = "output-box";
-                output.textContent = data.brd;
+<!-- ══════════════════════════════════════════════════
+     TAB 3 — KNOWLEDGE BASE
+══════════════════════════════════════════════════ -->
+<div id="tab-knowledge" class="tab-content">
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+      <h2 style="margin:0;">🗂 Indexed Documents</h2>
+      <button class="btn btn-navy" onclick="loadKnowledgeBase()">🔄 Refresh</button>
+    </div>
+    <div id="docTree" class="tree">
+      <div class="empty-tree">Loading knowledge base...</div>
+    </div>
+  </div>
+</div>
 
-                showStatus("success", "✅ BRD generated successfully!");
+<!-- ══════════════════════════════════════════════════
+     TAB 4 — MANAGE SYSTEMS
+══════════════════════════════════════════════════ -->
+<div id="tab-systems" class="tab-content">
+  <div class="grid-2">
 
-            } catch (error) {
-                output.className  = "output-box empty";
-                output.textContent = "Your BRD will appear here...";
-                showStatus("error", "❌ Error: " + error.message);
-            }
+    <!-- Add System -->
+    <div class="card">
+      <h2>🏢 Add New System</h2>
+      <label>System Name</label>
+      <div class="inline-row">
+        <div><input type="text" id="newSystemName" placeholder="e.g. Finance System"
+               onkeydown="if(event.key==='Enter')addSystem()"></div>
+        <button class="btn btn-gold" onclick="addSystem()">+ Add</button>
+      </div>
+      <div id="sysStatus" class="status"></div>
+    </div>
 
-            // Reset button
-            btn.disabled  = false;
-            btn.innerHTML = "⚡ Generate BRD";
-        }
+    <!-- Add Source -->
+    <div class="card">
+      <h2>📁 Add Source Type to System</h2>
+      <div style="margin-bottom:10px;">
+        <label>System</label>
+        <select id="srcSystem"></select>
+      </div>
+      <label>Source Type Name</label>
+      <div class="inline-row">
+        <div><input type="text" id="newSourceName" placeholder="e.g. Meeting Recordings"
+               onkeydown="if(event.key==='Enter')addSource()"></div>
+        <button class="btn btn-gold" onclick="addSource()">+ Add</button>
+      </div>
+      <div id="srcStatus" class="status"></div>
+    </div>
+  </div>
 
-        function copyBRD() {
-            if (!lastBRD) {
-                alert("Generate a BRD first!");
-                return;
-            }
-            navigator.clipboard.writeText(lastBRD)
-                .then(() => alert("✅ BRD copied to clipboard!"))
-                .catch(() => alert("Please select the text manually and copy it."));
-        }
+  <!-- Current Systems -->
+  <div class="card">
+    <h2>📋 Current Systems & Sources</h2>
+    <div id="systemsList"></div>
+  </div>
+</div>
 
-        function showStatus(type, message) {
-            const status = document.getElementById("status");
-            status.className = `status ${type}`;
-            status.innerHTML = message;
-        }
+<script>
+// ── State ──────────────────────────────────────────────────────
+let systems    = {};
+let lastBRD    = "";
+let selectedFile = null;
 
-        // Allow Ctrl+Enter to generate
-        document.addEventListener("keydown", function(e) {
-            if (e.ctrlKey && e.key === "Enter") generateBRD();
+// ── Init ───────────────────────────────────────────────────────
+window.onload = async () => {
+  await refreshSystems();
+  await loadKnowledgeBase();
+};
+
+// ── Tab Switching ──────────────────────────────────────────────
+function showTab(name) {
+  document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById(`tab-${name}`).classList.add('active');
+  event.target.classList.add('active');
+  if (name === 'knowledge') loadKnowledgeBase();
+  if (name === 'systems') renderSystemsList();
+  if (name === 'upload' || name === 'generate') populateSystemDropdowns();
+}
+
+// ── Systems ────────────────────────────────────────────────────
+async function refreshSystems() {
+  try {
+    const res = await fetch('/systems');
+    systems = await res.json();
+    populateSystemDropdowns();
+    renderSystemsList();
+  } catch(e) { console.error('Failed to load systems', e); }
+}
+
+function populateSystemDropdowns() {
+  const keys = Object.keys(systems);
+
+  // Generate tab dropdowns
+  const genSys = document.getElementById('genSystem');
+  genSys.innerHTML = '<option value="">All Systems</option>';
+  keys.forEach(s => genSys.innerHTML += `<option value="${s}">${s}</option>`);
+
+  // Upload tab dropdowns
+  const upSys = document.getElementById('upSystem');
+  upSys.innerHTML = '<option value="">— Select a System —</option>';
+  keys.forEach(s => upSys.innerHTML += `<option value="${s}">${s}</option>`);
+
+  // Manage Systems tab dropdown
+  const srcSys = document.getElementById('srcSystem');
+  srcSys.innerHTML = '';
+  keys.forEach(s => srcSys.innerHTML += `<option value="${s}">${s}</option>`);
+}
+
+function loadGenSources() {
+  const sys = document.getElementById('genSystem').value;
+  const src = document.getElementById('genSource');
+  src.innerHTML = '<option value="">All Sources</option>';
+  if (sys && systems[sys]) {
+    systems[sys].forEach(s => src.innerHTML += `<option value="${s}">${s}</option>`);
+  }
+}
+
+function loadUploadSources() {
+  const sys = document.getElementById('upSystem').value;
+  const src = document.getElementById('upSource');
+  src.innerHTML = '<option value="">— Select a Source —</option>';
+  if (sys && systems[sys]) {
+    systems[sys].forEach(s => src.innerHTML += `<option value="${s}">${s}</option>`);
+  }
+}
+
+async function addSystem() {
+  const name = document.getElementById('newSystemName').value.trim();
+  if (!name) return showStatus('sysStatus','err','Please enter a system name');
+
+  const res  = await fetch('/systems/add', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({system_name: name})
+  });
+  const data = await res.json();
+  if (res.ok) {
+    showStatus('sysStatus','ok', data.message);
+    document.getElementById('newSystemName').value = '';
+    await refreshSystems();
+  } else {
+    showStatus('sysStatus','err', data.detail);
+  }
+}
+
+async function addSource() {
+  const sys = document.getElementById('srcSystem').value;
+  const src = document.getElementById('newSourceName').value.trim();
+  if (!sys) return showStatus('srcStatus','err','Please select a system first');
+  if (!src) return showStatus('srcStatus','err','Please enter a source type name');
+
+  const res  = await fetch('/systems/add-source', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({system_name:sys, source_type:src})
+  });
+  const data = await res.json();
+  if (res.ok) {
+    showStatus('srcStatus','ok', data.message);
+    document.getElementById('newSourceName').value = '';
+    await refreshSystems();
+  } else {
+    showStatus('srcStatus','err', data.detail);
+  }
+}
+
+function renderSystemsList() {
+  const el = document.getElementById('systemsList');
+  if (!Object.keys(systems).length) {
+    el.innerHTML = '<p style="color:#3a5470;font-size:13px;">No systems yet. Add one above.</p>';
+    return;
+  }
+  let html = '';
+  for (const [sys, srcs] of Object.entries(systems)) {
+    html += `<div style="margin-bottom:16px;">
+      <div style="font-weight:700;color:#d4a017;margin-bottom:8px;">🏢 ${sys}</div>
+      <div style="margin-left:20px;">`;
+    if (srcs.length === 0) {
+      html += `<span style="color:#3a5470;font-size:12px;">No sources yet</span>`;
+    } else {
+      srcs.forEach(s => {
+        html += `<span class="pill">📁 ${s}</span>`;
+      });
+    }
+    html += `</div></div>`;
+  }
+  el.innerHTML = html;
+}
+
+// ── File Upload ────────────────────────────────────────────────
+function handleFileSelect(input) {
+  if (input.files[0]) setFile(input.files[0]);
+}
+
+function handleDrop(e) {
+  e.preventDefault();
+  document.getElementById('uploadZone').classList.remove('drag');
+  if (e.dataTransfer.files[0]) setFile(e.dataTransfer.files[0]);
+}
+
+function setFile(file) {
+  selectedFile = file;
+  document.getElementById('fileName').textContent = `📄 ${file.name} (${(file.size/1024).toFixed(1)} KB)`;
+  document.getElementById('uploadZone').style.borderColor = '#d4a017';
+}
+
+async function uploadDocument() {
+  const sys  = document.getElementById('upSystem').value;
+  const src  = document.getElementById('upSource').value;
+  const btn  = document.getElementById('uploadBtn');
+
+  if (!sys)          return showStatus('uploadStatus','err','Please select a System');
+  if (!src)          return showStatus('uploadStatus','err','Please select a Source Type');
+  if (!selectedFile) return showStatus('uploadStatus','err','Please select a file to upload');
+
+  btn.disabled  = true;
+  btn.innerHTML = '<span class="spin"></span> Uploading & indexing...';
+  showStatus('uploadStatus','load','<span class="spin"></span> Chunking, embedding, storing in Azure AI Search...');
+
+  const form = new FormData();
+  form.append('file',        selectedFile);
+  form.append('system_name', sys);
+  form.append('source_type', src);
+
+  try {
+    const res  = await fetch('/upload', { method:'POST', body:form });
+    const data = await res.json();
+
+    if (res.ok) {
+      showStatus('uploadStatus','ok', data.message);
+      selectedFile = null;
+      document.getElementById('fileName').textContent = 'Drag & drop or click to browse';
+      document.getElementById('uploadZone').style.borderColor = '#162b50';
+      document.getElementById('fileInput').value = '';
+      await loadKnowledgeBase();
+    } else {
+      showStatus('uploadStatus','err', data.detail);
+    }
+  } catch(e) {
+    showStatus('uploadStatus','err', 'Upload failed: ' + e.message);
+  }
+
+  btn.disabled  = false;
+  btn.innerHTML = '📤 Upload & Index Document';
+}
+
+// ── Knowledge Base Tree ────────────────────────────────────────
+async function loadKnowledgeBase() {
+  const tree = document.getElementById('docTree');
+  try {
+    const res  = await fetch('/documents');
+    const data = await res.json();
+
+    if (!Object.keys(data).length) {
+      tree.innerHTML = '<div class="empty-tree">📭 No documents indexed yet.<br>Upload documents using the Upload tab.</div>';
+      return;
+    }
+
+    let html = '';
+    for (const [sys, sources] of Object.entries(data)) {
+      let totalDocs = Object.values(sources).reduce((a,b) => a+b.length, 0);
+      html += `<div class="tree-system">
+        <div class="tree-system-hdr">
+          🏢 ${sys}
+          <span class="doc-badge">${totalDocs} doc${totalDocs!==1?'s':''}</span>
+        </div>`;
+
+      for (const [src, docs] of Object.entries(sources)) {
+        html += `<div class="tree-source">
+          <div class="tree-source-hdr">
+            📁 ${src}
+            <span class="doc-badge">${docs.length}</span>
+          </div>`;
+
+        docs.forEach(doc => {
+          html += `<div class="tree-doc">
+            <div>
+              <div>📄 ${doc.document_name}</div>
+              <div class="tree-doc-meta">
+                ${doc.chunks} chunks · ${doc.file_size_kb}KB · ${doc.upload_date} ${doc.upload_time}
+              </div>
+            </div>
+            <button class="btn btn-red" style="font-size:11px;padding:4px 10px;"
+                    onclick="removeDoc('${doc.id}','${doc.document_name}')">✕</button>
+          </div>`;
         });
-    </script>
+        html += '</div>';
+      }
+      html += '</div>';
+    }
+    tree.innerHTML = html;
+  } catch(e) {
+    tree.innerHTML = '<div class="empty-tree">Error loading knowledge base</div>';
+  }
+}
 
+async function removeDoc(id, name) {
+  if (!confirm(`Remove "${name}" from the registry?`)) return;
+  await fetch(`/documents/${id}`, {method:'DELETE'});
+  await loadKnowledgeBase();
+}
+
+// ── BRD Generation ─────────────────────────────────────────────
+async function generateBRD() {
+  const problem = document.getElementById('problemInput').value.trim();
+  const sys     = document.getElementById('genSystem').value;
+  const src     = document.getElementById('genSource').value;
+  const btn     = document.getElementById('generateBtn');
+  const output  = document.getElementById('brdOutput');
+
+  if (!problem || problem.length < 20)
+    return showStatus('genStatus','err','Please describe your problem in more detail');
+
+  btn.disabled  = true;
+  btn.innerHTML = '<span class="spin"></span> Generating BRD...';
+  output.className = 'brd-output empty';
+  output.textContent = '⏳ Searching knowledge base and generating BRD...';
+  showStatus('genStatus','load','<span class="spin"></span> This takes 15–30 seconds...');
+
+  try {
+    const res  = await fetch('/generate', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({
+        problem:     problem,
+        system_name: sys  || null,
+        source_type: src  || null
+      })
+    });
+    const data = await res.json();
+
+    if (res.ok) {
+      lastBRD = data.brd;
+      output.className  = 'brd-output';
+      output.textContent = data.brd;
+      showStatus('genStatus','ok','✅ BRD generated successfully with citations!');
+    } else {
+      throw new Error(data.detail);
+    }
+  } catch(e) {
+    output.className  = 'brd-output empty';
+    output.textContent = 'Your BRD will appear here...';
+    showStatus('genStatus','err','❌ ' + e.message);
+  }
+
+  btn.disabled  = false;
+  btn.innerHTML = '⚡ Generate BRD';
+}
+
+function copyBRD() {
+  if (!lastBRD) return alert('Generate a BRD first!');
+  navigator.clipboard.writeText(lastBRD)
+    .then(() => alert('✅ Copied to clipboard!'));
+}
+
+function saveBRD() {
+  if (!lastBRD) return alert('Generate a BRD first!');
+  const blob = new Blob([lastBRD], {type:'text/markdown'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `BRD_${new Date().toISOString().slice(0,10)}.md`;
+  a.click();
+}
+
+// ── Helpers ────────────────────────────────────────────────────
+function showStatus(id, type, msg) {
+  const el = document.getElementById(id);
+  el.className = `status show ${type}`;
+  el.innerHTML = msg;
+}
+
+// Ctrl+Enter to generate
+document.addEventListener('keydown', e => {
+  if (e.ctrlKey && e.key==='Enter') generateBRD();
+});
+</script>
 </body>
 </html>

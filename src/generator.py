@@ -1,15 +1,6 @@
 # generator.py
-# The generator is the final step in the pipeline:
-#
-#   User's business problem
-#          ↓
-#   Retriever finds relevant chunks
-#          ↓
-#   Generator builds a prompt  ← (this file)
-#          ↓
-#   GPT-4o-mini writes the BRD
-#          ↓
-#   Structured BRD + User Stories returned
+# Updated to include citations in every generated BRD.
+# Every section references which source it came from.
 
 import os
 import sys
@@ -17,81 +8,76 @@ from dotenv import load_dotenv
 from openai import OpenAI
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-from retriever import get_relevant_context, format_context
+from retriever import (
+    get_relevant_context,
+    format_context_with_citations,
+    format_citations_block
+)
 
 load_dotenv()
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 
-# ── The Prompt Template ───────────────────────────────────────
-# This is the most important part — it tells GPT-4o-mini
-# exactly what to do and how to format the output.
-
 BRD_PROMPT = """
 You are a senior Business Analyst with 15 years of experience.
-Your job is to write a professional Business Requirements Document (BRD).
+Write a professional Business Requirements Document (BRD).
 
-You have been given:
-1. A business problem statement from the user
-2. Relevant context retrieved from existing project documents
+IMPORTANT INSTRUCTIONS:
+- Only use information from the provided sources
+- After each major section add: (Source: [1], [2]) etc.
+- If information is not in the sources write: "TBC with stakeholders"
+- Never invent or assume information
 
-Use BOTH the problem statement AND the context to write the BRD.
-Only include information that is supported by the context provided.
-If something is not in the context, say "To be confirmed with stakeholders".
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-BUSINESS PROBLEM:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+BUSINESS PROBLEM STATEMENT:
 {problem}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-RELEVANT CONTEXT FROM DOCUMENTS:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+RETRIEVED SOURCES:
 {context}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Write a BRD using EXACTLY this structure:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Write the BRD using this EXACT structure:
 
 ## 1. EXECUTIVE SUMMARY
-(2-3 sentences summarising what this project is and why it matters)
+(2-3 sentences — what and why)
+(Source: [X])
 
 ## 2. BUSINESS PROBLEM
-(Clearly describe the current pain points and their business impact)
+(Current pain points and business impact)
+(Source: [X], [Y])
 
 ## 3. BUSINESS GOALS
-(List 3-5 measurable goals this project must achieve)
+(3-5 measurable goals)
+(Source: [X])
 
 ## 4. SCOPE
 ### In Scope:
-(What this project WILL deliver)
 ### Out of Scope:
-(What this project will NOT deliver — important for managing expectations)
 
 ## 5. STAKEHOLDERS
-| Role | Name/Team | Interest |
-|------|-----------|----------|
-(Fill in from context or mark as TBC)
+| Role | Team | Interest |
+|------|------|----------|
+(Source: [X])
 
 ## 6. FUNCTIONAL REQUIREMENTS
-(List the specific things the system must DO — number each one)
 FR-001:
 FR-002:
 FR-003:
-(continue as needed)
 
 ## 7. NON-FUNCTIONAL REQUIREMENTS
-(Performance, security, usability requirements)
 NFR-001:
 NFR-002:
 
 ## 8. USER STORIES
-(Write 3-5 user stories in this exact format)
 **Story 1:**
-- As a [type of user]
-- I want to [do something]
-- So that [I get this benefit]
-- Acceptance Criteria: [how we know it's done]
+- As a [user type]
+- I want to [action]
+- So that [benefit]
+- Acceptance Criteria: [criteria]
 
 ## 9. SUCCESS METRICS
-(How will we measure if this project succeeded? List 3-5 metrics)
+(3-5 measurable metrics)
 
 ## 10. ASSUMPTIONS & RISKS
 ### Assumptions:
@@ -99,68 +85,85 @@ NFR-002:
 """
 
 
-# ── Main Generator Function ───────────────────────────────────
-def generate_brd(problem_statement):
+def generate_brd(
+    problem_statement,
+    system_name=None,
+    source_type=None
+):
     """
     Full pipeline:
-    problem statement → retrieve context → build prompt → call GPT → return BRD
+    problem → retrieve → prompt → GPT-4o-mini → BRD with citations
     """
     print("\n" + "=" * 55)
-    print("🤖 BA COPILOT — GENERATING YOUR BRD")
+    print("🤖 BA COPILOT — GENERATING BRD")
     print("=" * 55)
 
-    # Step 1: Retrieve relevant context
+    # Step 1: Retrieve relevant chunks with metadata
     print("\n📚 Step 1: Searching knowledge base...")
-    chunks  = get_relevant_context(problem_statement, top_k=3)
-    context = format_context(chunks)
-    print(f"   Found {len(chunks)} relevant sections")
+    results = get_relevant_context(
+        problem_statement,
+        top_k=3,
+        system_name=system_name,
+        source_type=source_type
+    )
 
-    # Step 2: Build the prompt
-    print("\n📝 Step 2: Building prompt...")
+    if not results:
+        return (
+            "⚠️ No relevant documents found in the knowledge base.\n"
+            "Please upload documents first using the Upload tab."
+        )
+
+    # Step 2: Format context + citations
+    print("\n📝 Step 2: Building context and citations...")
+    context, citations = format_context_with_citations(results)
+    citation_block     = format_citations_block(citations)
+
+    # Step 3: Build prompt
     prompt = BRD_PROMPT.format(
         problem=problem_statement,
         context=context
     )
     print(f"   Prompt length: {len(prompt)} characters")
 
-    # Step 3: Call GPT-4o-mini
-    print("\n🧠 Step 3: Sending to GPT-4o-mini...")
-    print("   (This may take 15-30 seconds...)\n")
+    # Step 4: Call GPT-4o-mini
+    print("\n🧠 Step 3: Calling GPT-4o-mini...")
+    print("   (15-30 seconds...)\n")
 
     response = client.chat.completions.create(
         model="gpt-4o-mini",
         messages=[
             {
                 "role": "system",
-                "content": "You are a senior Business Analyst. "
-                           "Always write structured, professional BRDs. "
-                           "Never invent information not present in the context."
+                "content": (
+                    "You are a senior Business Analyst. "
+                    "Write structured professional BRDs. "
+                    "Always cite sources using [1], [2] notation. "
+                    "Never invent information not in the sources."
+                )
             },
             {
                 "role": "user",
                 "content": prompt
             }
         ],
-        temperature=0.2,   # Low = more focused, less creative
-        max_tokens=2000    # Enough for a full BRD
+        temperature=0.2,
+        max_tokens=2000
     )
 
-    # Step 4: Extract the BRD text
-    brd = response.choices[0].message.content
+    # Step 5: Build final BRD with citations appended
+    brd_content    = response.choices[0].message.content
+    full_brd       = brd_content + citation_block
 
-    # Step 5: Show token usage (so you can track costs)
+    # Step 6: Show usage
     usage = response.usage
-    print(f"📊 Tokens used:")
-    print(f"   Input  : {usage.prompt_tokens}")
-    print(f"   Output : {usage.completion_tokens}")
-    print(f"   Total  : {usage.total_tokens}")
-    print(f"   Cost   : ~${usage.total_tokens * 0.00000015:.6f} USD")
+    print(f"📊 Tokens used  : {usage.total_tokens}")
+    print(f"💰 Approx cost  : ~${usage.total_tokens * 0.00000015:.5f}")
 
-    return brd
+    return full_brd
 
 
 def save_brd(brd, filename="output_brd.md"):
-    """Save the BRD to a markdown file."""
+    """Save BRD to a markdown file."""
     with open(filename, "w", encoding="utf-8") as f:
         f.write(brd)
     print(f"\n💾 BRD saved to: {filename}")
@@ -168,28 +171,24 @@ def save_brd(brd, filename="output_brd.md"):
 
 # ── TEST ──────────────────────────────────────────────────────
 if __name__ == "__main__":
-
-    # This is the business problem we want the BRD for
     problem = """
-    Our HR department is struggling with a slow, manual employee onboarding 
-    process that relies on emails and paper forms. New employees often start 
-    work without proper system access, and HR spends too much time on 
-    repetitive administrative tasks. We need a digital solution that 
-    automates the onboarding workflow end to end.
+    Our HR department is struggling with a slow manual employee
+    onboarding process using emails and paper forms. New employees
+    often start without proper system access and HR spends too
+    much time on repetitive administrative tasks. We need a
+    digital solution to automate onboarding end to end.
     """
 
-    # Generate the BRD
-    brd = generate_brd(problem)
+    brd = generate_brd(
+        problem_statement=problem,
+        system_name="HR System",
+        source_type="SharePoint"
+    )
 
-    # Print it to screen
     print("\n" + "=" * 55)
-    print("📄 YOUR GENERATED BRD")
+    print("📄 GENERATED BRD WITH CITATIONS")
     print("=" * 55)
     print(brd)
-
-    # Save it to a file
     save_brd(brd)
 
-    print("\n" + "=" * 55)
-    print("✅ Generator is working!")
-    print("=" * 55)
+    print("\n✅ Generator with citations working!")

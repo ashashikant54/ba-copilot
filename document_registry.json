@@ -1,0 +1,42 @@
+[
+  {
+    "id": "49ac6683",
+    "document_name": "HR_Policy_2024.pdf",
+    "system_name": "HR System",
+    "source_type": "SharePoint",
+    "chunks": 6,
+    "upload_date": "2026-02-28",
+    "upload_time": "00:35:20",
+    "file_size_kb": 245
+  },
+  {
+    "id": "92e7ff00",
+    "document_name": "Onboarding_SOP.docx",
+    "system_name": "HR System",
+    "source_type": "SharePoint",
+    "chunks": 4,
+    "upload_date": "2026-02-28",
+    "upload_time": "00:35:20",
+    "file_size_kb": 128
+  },
+  {
+    "id": "1b770a2c",
+    "document_name": "Sprint_Backlog_Q3.xlsx",
+    "system_name": "IT System",
+    "source_type": "Azure DevOps",
+    "chunks": 8,
+    "upload_date": "2026-02-28",
+    "upload_time": "00:35:20",
+    "file_size_kb": 89
+  },
+  {
+    "id": "9722bc3d",
+    "document_name": "Agent_Architecture_Cheat_Sheet_TowardsAI.pdf",
+    "system_name": "Polaris",
+    "source_type": "Sharepoint",
+    "chunks": 28,
+    "upload_date": "2026-02-28",
+    "upload_time": "01:13:54",
+    "file_size_kb": 199.6
+  }
+]
