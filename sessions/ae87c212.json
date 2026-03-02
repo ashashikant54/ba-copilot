@@ -1,0 +1,148 @@
+{
+  "session_id": "ae87c212",
+  "org_id": "default",
+  "created_at": "2026-03-02 01:05:42",
+  "updated_at": "2026-03-02 01:05:54",
+  "stage": 5,
+  "stage_name": "Requirements Review",
+  "system_filter": "HR System",
+  "source_filter": "SharePoint",
+  "problem_raw": "Our HR department is struggling with manual onboarding.",
+  "clarifying_questions": [
+    {
+      "id": "Q1",
+      "question": "What is current onboarding duration?"
+    }
+  ],
+  "clarifying_answers": {},
+  "problem_refined": "HR onboarding takes 14 days via manual email and paper. 50 hires/month need Email, Slack, HRIS access on day 1 but provisioning delays average 4 days.",
+  "problem_approved": false,
+  "impacted_systems": [
+    {
+      "name": "HR Information System (HRIS)",
+      "impact_level": "High",
+      "in_scope": true,
+      "reason": "Core system for employee records",
+      "evidence": "New employees require HRIS access on day 1",
+      "needs_clarification": false
+    },
+    {
+      "name": "Email System",
+      "impact_level": "High",
+      "in_scope": true,
+      "reason": "Communication system needed from day 1",
+      "evidence": "Onboarding currently done via email",
+      "needs_clarification": false
+    },
+    {
+      "name": "IT Provisioning System",
+      "impact_level": "Medium",
+      "in_scope": true,
+      "reason": "Provisions access to all systems",
+      "evidence": "IT provisions access manually",
+      "needs_clarification": true
+    }
+  ],
+  "impacted_stakeholders": [
+    {
+      "name": "HR Manager",
+      "team": "Human Resources",
+      "impact_level": "High",
+      "involvement": "Responsible",
+      "reason": "Owns the onboarding process",
+      "needs_clarification": false
+    },
+    {
+      "name": "IT Department",
+      "team": "Information Technology",
+      "impact_level": "High",
+      "involvement": "Responsible",
+      "reason": "Manages system access provisioning",
+      "needs_clarification": false
+    }
+  ],
+  "existing_process": [
+    {
+      "step": 1,
+      "action": "HR sends welcome email to new employee",
+      "actor": "HR Manager",
+      "system": "Email System",
+      "pain_point": "Manual, no tracking",
+      "citation": "Source 1",
+      "needs_clarification": false
+    },
+    {
+      "step": 2,
+      "action": "IT receives access request via email",
+      "actor": "IT Department",
+      "system": "Email System",
+      "pain_point": "Requests get lost, no SLA",
+      "citation": "Source 1",
+      "needs_clarification": true
+    }
+  ],
+  "system_graph": "",
+  "gap_questions": [
+    {
+      "id": "G1",
+      "question": "What specific data fields are required in the access request that IT receives via email?",
+      "directed_to_system": "IT Provisioning System",
+      "directed_to_stakeholder": "IT Department",
+      "why_needed": "Understanding the required data fields will help define integration points and ensure all necessary information is captured for provisioning.",
+      "expected_in_document": "Business Requirements Document (BRD)",
+      "priority": "High"
+    },
+    {
+      "id": "G2",
+      "question": "What is the current SLA for processing access requests in the IT Provisioning System?",
+      "directed_to_system": "IT Provisioning System",
+      "directed_to_stakeholder": "IT Department",
+      "why_needed": "Knowing the SLA will help set expectations for the onboarding process and identify areas for improvement.",
+      "expected_in_document": "Business Requirements Document (BRD)",
+      "priority": "High"
+    },
+    {
+      "id": "G3",
+      "question": "What are the current exception handling procedures if an access request is not fulfilled on time?",
+      "directed_to_system": "IT Provisioning System",
+      "directed_to_stakeholder": "IT Department",
+      "why_needed": "Clarifying exception handling will ensure that the process is robust and that there are contingency plans in place.",
+      "expected_in_document": "Business Requirements Document (BRD)",
+      "priority": "Medium"
+    },
+    {
+      "id": "G4",
+      "question": "What volume of access requests does the IT Department currently handle, and how does this impact provisioning times?",
+      "directed_to_system": "IT Provisioning System",
+      "directed_to_stakeholder": "IT Department",
+      "why_needed": "Understanding the volume will help assess the scalability of the proposed solution and identify potential bottlenecks.",
+      "expected_in_document": "Business Requirements Document (BRD)",
+      "priority": "Medium"
+    },
+    {
+      "id": "G5",
+      "question": "What compliance requirements must be adhered to during the onboarding process?",
+      "directed_to_system": "HR Information System",
+      "directed_to_stakeholder": "HR Manager",
+      "why_needed": "Identifying compliance requirements is crucial to ensure that the onboarding process meets legal and regulatory standards.",
+      "expected_in_document": "Business Requirements Document (BRD)",
+      "priority": "High"
+    }
+  ],
+  "gap_answers": {
+    "G1": "Sample answer for: What specific data fields are required in the acce",
+    "G2": "Sample answer for: What is the current SLA for processing access requ",
+    "G3": "Sample answer for: What are the current exception handling procedures",
+    "G4": "",
+    "G5": ""
+  },
+  "gap_documents": [],
+  "clarity_score": 78,
+  "clarity_sufficient": true,
+  "clarity_confirmed": true,
+  "requirements": [],
+  "brd_draft": "",
+  "brd_approved": false,
+  "brd_final": "",
+  "user_stories": []
+}
