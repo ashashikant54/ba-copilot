@@ -1,0 +1,109 @@
+{
+  "session_id": "64fa0594",
+  "org_id": "default",
+  "created_at": "2026-03-02 01:22:32",
+  "updated_at": "2026-03-02 01:22:50",
+  "stage": 7,
+  "stage_name": "User Stories",
+  "system_filter": "HR System",
+  "source_filter": "SharePoint",
+  "problem_raw": "HR manual onboarding is slow.",
+  "clarifying_questions": [],
+  "clarifying_answers": {},
+  "problem_refined": "HR onboarding takes 14 days via manual email and paper. 50 hires/month need Email, Slack, HRIS access on day 1 but provisioning delays average 4 days. Goal: reduce to 2 days with zero access delays.",
+  "problem_approved": false,
+  "impacted_systems": [
+    {
+      "name": "HRIS",
+      "impact_level": "High",
+      "in_scope": true,
+      "reason": "Core records"
+    },
+    {
+      "name": "Email System",
+      "impact_level": "High",
+      "in_scope": true,
+      "reason": "Day-1 communication"
+    }
+  ],
+  "impacted_stakeholders": [
+    {
+      "name": "HR Manager",
+      "team": "HR",
+      "impact_level": "High",
+      "involvement": "Responsible",
+      "reason": "Owns onboarding"
+    },
+    {
+      "name": "IT Department",
+      "team": "IT",
+      "impact_level": "High",
+      "involvement": "Responsible",
+      "reason": "Provisions access"
+    }
+  ],
+  "existing_process": [],
+  "system_graph": "",
+  "gap_questions": [],
+  "gap_answers": {},
+  "gap_documents": [],
+  "clarity_score": 0,
+  "clarity_sufficient": false,
+  "clarity_confirmed": false,
+  "requirements": [
+    {
+      "id": "REQ-001",
+      "type": "Functional",
+      "status": "accepted",
+      "text": "The system shall automate employee onboarding workflow.",
+      "edited_text": "",
+      "rationale": "Eliminates manual email process",
+      "source": "Knowledge base",
+      "confidence": "High"
+    },
+    {
+      "id": "REQ-002",
+      "type": "Functional",
+      "status": "edited",
+      "text": "The system shall provision system access within 4 hours.",
+      "edited_text": "The system shall provision all required system access within 2 hours of onboarding initiation.",
+      "rationale": "Eliminates day-1 access delays",
+      "source": "Gap answer",
+      "confidence": "High"
+    },
+    {
+      "id": "REQ-003",
+      "type": "Non-Functional",
+      "status": "accepted",
+      "text": "The system shall support 50 concurrent onboarding processes.",
+      "edited_text": "",
+      "rationale": "Handles monthly hire volume",
+      "source": "Clarification answer",
+      "confidence": "High"
+    },
+    {
+      "id": "REQ-004",
+      "type": "Integration",
+      "status": "accepted",
+      "text": "The system shall integrate with HRIS, Email, and Slack.",
+      "edited_text": "",
+      "rationale": "Day-1 access to all required systems",
+      "source": "Knowledge base",
+      "confidence": "High"
+    },
+    {
+      "id": "REQ-005",
+      "type": "Functional",
+      "status": "rejected",
+      "text": "The system shall send SMS notifications.",
+      "edited_text": "",
+      "rationale": "Out of scope for this phase",
+      "source": "Gap answer",
+      "confidence": "Low"
+    }
+  ],
+  "brd_draft": "# Business Requirements Document\n\n## 1. EXECUTIVE SUMMARY\nThe objective of this project is to automate the HR onboarding process to significantly reduce the time taken from 14 days to 2 days. By implementing an automated system that provisions necessary access within 2 hours, we aim to eliminate delays and enhance the new hire experience on their first day.\n\n## 2. BUSINESS PROBLEM\nThe current onboarding process is inefficient, taking an average of 14 days due to manual email and paper processes. Key pain points include a 4-day delay in IT access provisioning, which affects 50 new hires each month. This results in a lack of visibility into the onboarding status and a significant allocation of HR resources to repetitive tasks.\n\n## 3. BUSINESS GOALS\n1. Reduce the onboarding time from 14 days to 2 days (aligned with REQ-001).\n2. Automate IT access provisioning to ensure all required system access is granted within 2 hours of onboarding initiation (aligned with REQ-002).\n3. Support 50 concurrent onboarding processes to handle the monthly hire volume effectively (aligned with REQ-003).\n4. Integrate with HRIS, Email, and Slack to provide day-1 access to all required systems (aligned with REQ-004).\n\n## 4. SCOPE\n### In Scope:\n- Automation of the employee onboarding workflow (REQ-001).\n- Provisioning of system access within 2 hours of onboarding initiation (REQ-002).\n- Support for 50 concurrent onboarding processes (REQ-003).\n- Integration with HRIS, Email, and Slack (REQ-004).\n\n### Out of Scope:\n- Manual onboarding processes and paperwork.\n- Any systems or processes not directly related to the onboarding workflow.\n\n## 5. STAKEHOLDERS\n| Role          | Team | Involvement                | Impact                       |\n|---------------|------|----------------------------|------------------------------|\n| HR Manager    | HR   | Oversee onboarding process  | High                         |\n| IT Department  | IT   | Implement access provisioning| High                         |\n| New Employees | HR   | Complete onboarding         | High                         |\n\n## 6. FUNCTIONAL REQUIREMENTS\n- [REQ-001] The system shall automate employee onboarding workflow.\n- [REQ-002] The system shall provision all required system access within 2 hours of onboarding initiation.\n\n## 7. NON-FUNCTIONAL REQUIREMENTS\n- [REQ-003] The system shall support 50 concurrent onboarding processes.\n\n## 8. INTEGRATION REQUIREMENTS\n- [REQ-004] The system shall integrate with HRIS, Email, and Slack.\n\n## 9. ASSUMPTIONS & RISKS\n### Assumptions:\n- The integration with existing systems (HRIS, Email, and Slack) will be seamless and will not require extensive modifications.\n- All stakeholders will be available for training and implementation support.\n\n### Risks:\n- Potential resistance from HR and IT staff to adopt the new automated processes.\n- Technical challenges during the integration phase that may delay project timelines.\n\n## 10. SUCCESS METRICS\n- Reduction in onboarding time to 2 days as measured from initiation to completion.\n- Achievement of 100% system access provisioning within 2 hours for all new hires.\n- Positive feedback from new employees regarding their onboarding experience.\n\n---\n## TRACEABILITY MATRIX\n| REQ ID | Requirement                                                       | Type           | Source          | Status |\n|--------|------------------------------------------------------------------|----------------|------------------|--------|\n| REQ-001| The system shall automate employee onboarding workflow.           | Functional     | Knowledge base   | Approved |\n| REQ-002| The system shall provision all required system access within 2 hours of onboarding initiation. | Functional     | Gap answer       | Approved |\n| REQ-003| The system shall support 50 concurrent onboarding processes.      | Non-Functional | Clarification answer | Approved |\n| REQ-004| The system shall integrate with HRIS, Email, and Slack.          | Integration     | Knowledge base   | Approved |\n\n---\n## \ud83d\udcce Sources & Citations\n\n**[1] sample_requirements.txt**\n- System     : HR System\n- Source     : SharePoint\n- Chunk      : 1\n- Uploaded   : 2026-02-27\n- Confidence : 3%\n\n**[2] sample_requirements.txt**\n- System     : HR System\n- Source     : SharePoint\n- Chunk      : 2\n- Uploaded   : 2026-02-27\n- Confidence : 3%\n\n**[3] sample_requirements.txt**\n- System     : HR System\n- Source     : SharePoint\n- Chunk      : 3\n- Uploaded   : 2026-02-27\n- Confidence : 3%\n\n",
+  "brd_approved": true,
+  "brd_final": "# Business Requirements Document\n\n## 1. EXECUTIVE SUMMARY\nThe objective of this project is to automate the HR onboarding process to significantly reduce the time taken from 14 days to 2 days. By implementing an automated system that provisions necessary access within 2 hours, we aim to eliminate delays and enhance the new hire experience on their first day.\n\n## 2. BUSINESS PROBLEM\nThe current onboarding process is inefficient, taking an average of 14 days due to manual email and paper processes. Key pain points include a 4-day delay in IT access provisioning, which affects 50 new hires each month. This results in a lack of visibility into the onboarding status and a significant allocation of HR resources to repetitive tasks.\n\n## 3. BUSINESS GOALS\n1. Reduce the onboarding time from 14 days to 2 days (aligned with REQ-001).\n2. Automate IT access provisioning to ensure all required system access is granted within 2 hours of onboarding initiation (aligned with REQ-002).\n3. Support 50 concurrent onboarding processes to handle the monthly hire volume effectively (aligned with REQ-003).\n4. Integrate with HRIS, Email, and Slack to provide day-1 access to all required systems (aligned with REQ-004).\n\n## 4. SCOPE\n### In Scope:\n- Automation of the employee onboarding workflow (REQ-001).\n- Provisioning of system access within 2 hours of onboarding initiation (REQ-002).\n- Support for 50 concurrent onboarding processes (REQ-003).\n- Integration with HRIS, Email, and Slack (REQ-004).\n\n### Out of Scope:\n- Manual onboarding processes and paperwork.\n- Any systems or processes not directly related to the onboarding workflow.\n\n## 5. STAKEHOLDERS\n| Role          | Team | Involvement                | Impact                       |\n|---------------|------|----------------------------|------------------------------|\n| HR Manager    | HR   | Oversee onboarding process  | High                         |\n| IT Department  | IT   | Implement access provisioning| High                         |\n| New Employees | HR   | Complete onboarding         | High                         |\n\n## 6. FUNCTIONAL REQUIREMENTS\n- [REQ-001] The system shall automate employee onboarding workflow.\n- [REQ-002] The system shall provision all required system access within 2 hours of onboarding initiation.\n\n## 7. NON-FUNCTIONAL REQUIREMENTS\n- [REQ-003] The system shall support 50 concurrent onboarding processes.\n\n## 8. INTEGRATION REQUIREMENTS\n- [REQ-004] The system shall integrate with HRIS, Email, and Slack.\n\n## 9. ASSUMPTIONS & RISKS\n### Assumptions:\n- The integration with existing systems (HRIS, Email, and Slack) will be seamless and will not require extensive modifications.\n- All stakeholders will be available for training and implementation support.\n\n### Risks:\n- Potential resistance from HR and IT staff to adopt the new automated processes.\n- Technical challenges during the integration phase that may delay project timelines.\n\n## 10. SUCCESS METRICS\n- Reduction in onboarding time to 2 days as measured from initiation to completion.\n- Achievement of 100% system access provisioning within 2 hours for all new hires.\n- Positive feedback from new employees regarding their onboarding experience.\n\n---\n## TRACEABILITY MATRIX\n| REQ ID | Requirement                                                       | Type           | Source          | Status |\n|--------|------------------------------------------------------------------|----------------|------------------|--------|\n| REQ-001| The system shall automate employee onboarding workflow.           | Functional     | Knowledge base   | Approved |\n| REQ-002| The system shall provision all required system access within 2 hours of onboarding initiation. | Functional     | Gap answer       | Approved |\n| REQ-003| The system shall support 50 concurrent onboarding processes.      | Non-Functional | Clarification answer | Approved |\n| REQ-004| The system shall integrate with HRIS, Email, and Slack.          | Integration     | Knowledge base   | Approved |\n\n---\n## \ud83d\udcce Sources & Citations\n\n**[1] sample_requirements.txt**\n- System     : HR System\n- Source     : SharePoint\n- Chunk      : 1\n- Uploaded   : 2026-02-27\n- Confidence : 3%\n\n**[2] sample_requirements.txt**\n- System     : HR System\n- Source     : SharePoint\n- Chunk      : 2\n- Uploaded   : 2026-02-27\n- Confidence : 3%\n\n**[3] sample_requirements.txt**\n- System     : HR System\n- Source     : SharePoint\n- Chunk      : 3\n- Uploaded   : 2026-02-27\n- Confidence : 3%\n\n",
+  "user_stories": []
+}

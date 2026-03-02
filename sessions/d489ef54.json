@@ -1,0 +1,109 @@
+{
+  "session_id": "d489ef54",
+  "org_id": "default",
+  "created_at": "2026-03-02 01:15:33",
+  "updated_at": "2026-03-02 01:15:33",
+  "stage": 6,
+  "stage_name": "BRD Preview",
+  "system_filter": "HR System",
+  "source_filter": "SharePoint",
+  "problem_raw": "HR manual onboarding is slow.",
+  "clarifying_questions": [],
+  "clarifying_answers": {},
+  "problem_refined": "HR onboarding takes 14 days via manual email and paper. 50 hires/month need Email, Slack, HRIS access on day 1 but provisioning delays average 4 days. Goal: reduce to 2 days with zero access delays.",
+  "problem_approved": false,
+  "impacted_systems": [
+    {
+      "name": "HRIS",
+      "impact_level": "High",
+      "in_scope": true,
+      "reason": "Core records"
+    },
+    {
+      "name": "Email System",
+      "impact_level": "High",
+      "in_scope": true,
+      "reason": "Day-1 communication"
+    }
+  ],
+  "impacted_stakeholders": [
+    {
+      "name": "HR Manager",
+      "team": "HR",
+      "impact_level": "High",
+      "involvement": "Responsible",
+      "reason": "Owns onboarding"
+    },
+    {
+      "name": "IT Department",
+      "team": "IT",
+      "impact_level": "High",
+      "involvement": "Responsible",
+      "reason": "Provisions access"
+    }
+  ],
+  "existing_process": [],
+  "system_graph": "",
+  "gap_questions": [],
+  "gap_answers": {},
+  "gap_documents": [],
+  "clarity_score": 0,
+  "clarity_sufficient": false,
+  "clarity_confirmed": false,
+  "requirements": [
+    {
+      "id": "REQ-001",
+      "type": "Functional",
+      "status": "accepted",
+      "text": "The system shall automate employee onboarding workflow.",
+      "edited_text": "",
+      "rationale": "Eliminates manual email process",
+      "source": "Knowledge base",
+      "confidence": "High"
+    },
+    {
+      "id": "REQ-002",
+      "type": "Functional",
+      "status": "edited",
+      "text": "The system shall provision system access within 4 hours.",
+      "edited_text": "The system shall provision all required system access within 2 hours of onboarding initiation.",
+      "rationale": "Eliminates day-1 access delays",
+      "source": "Gap answer",
+      "confidence": "High"
+    },
+    {
+      "id": "REQ-003",
+      "type": "Non-Functional",
+      "status": "accepted",
+      "text": "The system shall support 50 concurrent onboarding processes.",
+      "edited_text": "",
+      "rationale": "Handles monthly hire volume",
+      "source": "Clarification answer",
+      "confidence": "High"
+    },
+    {
+      "id": "REQ-004",
+      "type": "Integration",
+      "status": "accepted",
+      "text": "The system shall integrate with HRIS, Email, and Slack.",
+      "edited_text": "",
+      "rationale": "Day-1 access to all required systems",
+      "source": "Knowledge base",
+      "confidence": "High"
+    },
+    {
+      "id": "REQ-005",
+      "type": "Functional",
+      "status": "rejected",
+      "text": "The system shall send SMS notifications.",
+      "edited_text": "",
+      "rationale": "Out of scope for this phase",
+      "source": "Gap answer",
+      "confidence": "Low"
+    }
+  ],
+  "brd_draft": "",
+  "brd_approved": false,
+  "brd_final": "",
+  "user_stories": []
+}
