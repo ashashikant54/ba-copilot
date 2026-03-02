@@ -1,0 +1,156 @@
+{
+  "session_id": "a615b841",
+  "org_id": "default",
+  "created_at": "2026-03-02 01:29:42",
+  "updated_at": "2026-03-02 01:29:58",
+  "stage": 8,
+  "stage_name": "Complete",
+  "system_filter": "HR System",
+  "source_filter": "SharePoint",
+  "problem_raw": "HR manual onboarding is slow.",
+  "clarifying_questions": [],
+  "clarifying_answers": {},
+  "problem_refined": "HR onboarding takes 14 days via manual email and paper. 50 hires/month need Email, Slack, HRIS access on day 1 but provisioning delays average 4 days. Goal: reduce to 2 days with zero access delays.",
+  "problem_approved": false,
+  "impacted_systems": [],
+  "impacted_stakeholders": [],
+  "existing_process": [],
+  "system_graph": "",
+  "gap_questions": [],
+  "gap_answers": {},
+  "gap_documents": [],
+  "clarity_score": 0,
+  "clarity_sufficient": false,
+  "clarity_confirmed": false,
+  "requirements": [
+    {
+      "id": "REQ-001",
+      "type": "Functional",
+      "status": "accepted",
+      "edited_text": "",
+      "text": "The system shall automate the employee onboarding workflow end to end.",
+      "rationale": "Eliminates manual email process",
+      "source": "Knowledge base",
+      "confidence": "High"
+    },
+    {
+      "id": "REQ-002",
+      "type": "Functional",
+      "status": "edited",
+      "text": "The system shall provision system access within 4 hours.",
+      "edited_text": "The system shall provision all required system access within 2 hours of onboarding initiation.",
+      "rationale": "Eliminates day-1 access delays",
+      "source": "Gap answer",
+      "confidence": "High"
+    },
+    {
+      "id": "REQ-003",
+      "type": "Non-Functional",
+      "status": "accepted",
+      "edited_text": "",
+      "text": "The system shall support 50 concurrent onboarding processes.",
+      "rationale": "Handles monthly hire volume",
+      "source": "Clarification answer",
+      "confidence": "High"
+    },
+    {
+      "id": "REQ-004",
+      "type": "Integration",
+      "status": "accepted",
+      "edited_text": "",
+      "text": "The system shall integrate with HRIS, Email, and Slack APIs.",
+      "rationale": "Day-1 access to all required systems",
+      "source": "Knowledge base",
+      "confidence": "High"
+    }
+  ],
+  "brd_draft": "",
+  "brd_approved": false,
+  "brd_final": "# Business Requirements Document\n\n## 1. EXECUTIVE SUMMARY\nThis project automates the HR employee onboarding workflow to reduce cycle time from 14 days to 2 days.\n\n## 6. FUNCTIONAL REQUIREMENTS\nREQ-001: Automate onboarding workflow end to end.\nREQ-002: Provision access within 2 hours.\n\n## 7. NON-FUNCTIONAL REQUIREMENTS\nREQ-003: Support 50 concurrent onboarding processes.\n\n## 8. INTEGRATION REQUIREMENTS\nREQ-004: Integrate with HRIS, Email, and Slack APIs.\n",
+  "user_stories": [
+    {
+      "id": "US-001",
+      "parent_req": "REQ-001",
+      "title": "Automate employee onboarding initiation",
+      "as_a": "HR Manager",
+      "i_want": "to initiate the onboarding process through a single interface",
+      "so_that": "I can eliminate manual email processes",
+      "acceptance_criteria": [
+        "Given the HR Manager is on the onboarding interface, when they click 'Start Onboarding', then a new onboarding workflow is initiated.",
+        "Given a new onboarding workflow is initiated, when the HR Manager inputs employee details, then the system saves the information correctly.",
+        "Given the onboarding workflow is initiated, when the HR Manager views the status, then they see the current progress of the onboarding."
+      ],
+      "story_points": 5,
+      "priority": "High",
+      "tags": [
+        "Onboarding",
+        "HR",
+        "Automation"
+      ],
+      "notes": "Ensure the interface is user-friendly and intuitive."
+    },
+    {
+      "id": "US-002",
+      "parent_req": "REQ-002",
+      "title": "Provision system access for new employees",
+      "as_a": "System Administrator",
+      "i_want": "to automatically provision system access within 2 hours of onboarding initiation",
+      "so_that": "new employees can start working without delays",
+      "acceptance_criteria": [
+        "Given an onboarding workflow is initiated, when the system processes the request, then all required system access is provisioned within 2 hours.",
+        "Given the system access is provisioned, when the new employee logs in, then they have access to all necessary systems.",
+        "Given the system access is provisioned, when the HR Manager checks the status, then they receive a confirmation notification."
+      ],
+      "story_points": 8,
+      "priority": "Critical",
+      "tags": [
+        "Onboarding",
+        "Access",
+        "Automation"
+      ],
+      "notes": "Monitor the provisioning process for any potential delays."
+    },
+    {
+      "id": "US-003",
+      "parent_req": "REQ-003",
+      "title": "Support concurrent onboarding processes",
+      "as_a": "System Architect",
+      "i_want": "the system to handle 50 concurrent onboarding processes",
+      "so_that": "we can manage the monthly hire volume effectively",
+      "acceptance_criteria": [
+        "Given the system is under load, when 50 onboarding processes are initiated simultaneously, then the system should not crash or slow down significantly.",
+        "Given the system is processing 50 concurrent onboarding workflows, when a new onboarding request is made, then it should be queued without errors.",
+        "Given the system is handling concurrent processes, when the performance is monitored, then it should meet the defined performance benchmarks."
+      ],
+      "story_points": 13,
+      "priority": "High",
+      "tags": [
+        "Onboarding",
+        "Performance",
+        "Scalability"
+      ],
+      "notes": "Conduct load testing to ensure system stability."
+    },
+    {
+      "id": "US-004",
+      "parent_req": "REQ-004",
+      "title": "Integrate with HRIS, Email, and Slack APIs",
+      "as_a": "Integration Developer",
+      "i_want": "to integrate the onboarding system with HRIS, Email, and Slack APIs",
+      "so_that": "notifications and data flow seamlessly between systems",
+      "acceptance_criteria": [
+        "Given the onboarding process is initiated, when the integration is triggered, then the HRIS receives the new employee data.",
+        "Given the onboarding process is initiated, when the integration is triggered, then an email notification is sent to the new employee.",
+        "Given the onboarding process is initiated, when the integration is triggered, then a Slack message is sent to the team notifying them of the new hire."
+      ],
+      "story_points": 8,
+      "priority": "Critical",
+      "tags": [
+        "Integration",
+        "Onboarding",
+        "APIs"
+      ],
+      "notes": "Ensure all API endpoints are documented and accessible."
+    }
+  ]
+}
