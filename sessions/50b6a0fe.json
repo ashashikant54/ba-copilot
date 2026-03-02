@@ -1,0 +1,46 @@
+{
+  "session_id": "50b6a0fe",
+  "org_id": "default",
+  "created_at": "2026-03-01 22:57:23",
+  "updated_at": "2026-03-01 22:57:23",
+  "stage": 2,
+  "stage_name": "Clarification",
+  "system_filter": "HR System",
+  "source_filter": "SharePoint",
+  "problem_raw": "Our HR department is struggling with a slow manual onboarding process using emails and paper forms. New employees start without proper access.",
+  "clarifying_questions": [
+    {
+      "id": "Q1",
+      "question": "What is current onboarding duration?",
+      "why_asking": "Baseline metric",
+      "not_found_in_docs": true
+    },
+    {
+      "id": "Q2",
+      "question": "Which systems need day-1 access?",
+      "why_asking": "Scope IT integrations",
+      "not_found_in_docs": false
+    }
+  ],
+  "clarifying_answers": {
+    "Q1": "14 days",
+    "Q2": "Email, Slack, HRIS"
+  },
+  "problem_refined": "HR onboarding currently takes 14 days due to manual email and paper processes. Goal: reduce to 2 days.",
+  "problem_approved": true,
+  "impacted_systems": [],
+  "impacted_stakeholders": [],
+  "existing_process": [],
+  "system_graph": "",
+  "gap_questions": [],
+  "gap_answers": {},
+  "gap_documents": [],
+  "clarity_score": 0,
+  "clarity_sufficient": false,
+  "clarity_confirmed": false,
+  "requirements": [],
+  "brd_draft": "",
+  "brd_approved": false,
+  "brd_final": "",
+  "user_stories": []
+}

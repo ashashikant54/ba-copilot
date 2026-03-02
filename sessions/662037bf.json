@@ -1,0 +1,67 @@
+{
+  "session_id": "662037bf",
+  "org_id": "default",
+  "created_at": "2026-03-01 23:10:11",
+  "updated_at": "2026-03-01 23:10:26",
+  "stage": 3,
+  "stage_name": "System & Stakeholder Analysis",
+  "system_filter": "HR System",
+  "source_filter": "SharePoint",
+  "problem_raw": "Our HR department is struggling with a slow manual employee onboarding process. New employees often start without proper system access and HR spends too much time on administrative tasks.",
+  "clarifying_questions": [
+    {
+      "id": "Q1",
+      "question": "What is the target timeline for reducing the onboarding process from 2 weeks to a more efficient duration?",
+      "why_asking": "To establish a measurable goal for the improvement of the onboarding process.",
+      "not_found_in_docs": true
+    },
+    {
+      "id": "Q2",
+      "question": "What specific metrics will be used to measure the success of the new onboarding process?",
+      "why_asking": "To define clear success criteria for evaluating the effectiveness of the new system.",
+      "not_found_in_docs": true
+    },
+    {
+      "id": "Q3",
+      "question": "Which systems currently lack integration for onboarding tasks, and what specific access do new employees need?",
+      "why_asking": "To identify the scope of system integration required for improving access provisioning.",
+      "not_found_in_docs": true
+    },
+    {
+      "id": "Q4",
+      "question": "Who are the key stakeholders responsible for approving changes to the onboarding process?",
+      "why_asking": "To clarify the decision-making authority and ensure all relevant parties are involved.",
+      "not_found_in_docs": true
+    },
+    {
+      "id": "Q5",
+      "question": "What are the specific compliance documents that are frequently missed or filed incorrectly?",
+      "why_asking": "To understand the compliance requirements that need to be addressed in the new process.",
+      "not_found_in_docs": true
+    }
+  ],
+  "clarifying_answers": {
+    "Q1": "Sample answer to: What is the target timeline for reducing the onboa",
+    "Q2": "Sample answer to: What specific metrics will be used to measure the ",
+    "Q3": "Sample answer to: Which systems currently lack integration for onboa",
+    "Q4": "Sample answer to: Who are the key stakeholders responsible for appro",
+    "Q5": "Sample answer to: What are the specific compliance documents that ar"
+  },
+  "problem_refined": "The current employee onboarding process takes 2 weeks, during which HR spends 40% of their time on repetitive tasks, resulting in new hires often starting without proper system access. This manual process leads to an average delay of 4 days for IT access provisioning and 3-5 days for processing new hire paperwork, with compliance documents frequently missed or filed incorrectly. The lack of visibility into the onboarding status further exacerbates these issues. The goal is to reduce the onboarding duration to less than 1 week and improve the accuracy and efficiency of the process by implementing an integrated onboarding system.",
+  "problem_approved": true,
+  "impacted_systems": [],
+  "impacted_stakeholders": [],
+  "existing_process": [],
+  "system_graph": "",
+  "gap_questions": [],
+  "gap_answers": {},
+  "gap_documents": [],
+  "clarity_score": 0,
+  "clarity_sufficient": false,
+  "clarity_confirmed": false,
+  "requirements": [],
+  "brd_draft": "",
+  "brd_approved": false,
+  "brd_final": "",
+  "user_stories": []
+}

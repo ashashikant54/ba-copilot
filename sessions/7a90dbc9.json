@@ -1,0 +1,107 @@
+{
+  "session_id": "7a90dbc9",
+  "org_id": "default",
+  "created_at": "2026-03-02 00:51:05",
+  "updated_at": "2026-03-02 00:51:24",
+  "stage": 3,
+  "stage_name": "System & Stakeholder Analysis",
+  "system_filter": "HR System",
+  "source_filter": "SharePoint",
+  "problem_raw": "Our HR department is struggling with manual onboarding.",
+  "clarifying_questions": [],
+  "clarifying_answers": {},
+  "problem_refined": "The HR department currently takes 14 days to onboard new employees using manual email and paper-based processes. 50 new hires per month require access to Email, Slack, and HRIS on day 1 but provisioning delays average 4 days. Goal: reduce onboarding to 2 days with zero access delays.",
+  "problem_approved": false,
+  "impacted_systems": [
+    {
+      "name": "Email",
+      "impact_level": "High",
+      "in_scope": true,
+      "reason": "Email is used for onboarding communication and paperwork.",
+      "evidence": "Our company currently onboards new employees using email and paper forms.",
+      "needs_clarification": false
+    },
+    {
+      "name": "HRIS",
+      "impact_level": "High",
+      "in_scope": true,
+      "reason": "HRIS is essential for managing employee records and onboarding processes.",
+      "evidence": "New hires require access to HRIS on day 1.",
+      "needs_clarification": false
+    },
+    {
+      "name": "Slack",
+      "impact_level": "High",
+      "in_scope": true,
+      "reason": "Slack is used for communication among employees and teams.",
+      "evidence": "New hires require access to Slack on day 1.",
+      "needs_clarification": false
+    }
+  ],
+  "impacted_stakeholders": [
+    {
+      "name": "HR Director",
+      "team": "HR",
+      "impact_level": "High",
+      "involvement": "Accountable",
+      "reason": "Responsible for overseeing the onboarding process and improving efficiency.",
+      "needs_clarification": false
+    },
+    {
+      "name": "IT Manager",
+      "team": "IT",
+      "impact_level": "High",
+      "involvement": "Accountable",
+      "reason": "Responsible for automating access provisioning for new hires.",
+      "needs_clarification": false
+    },
+    {
+      "name": "Finance",
+      "team": "Finance",
+      "impact_level": "Medium",
+      "involvement": "Consulted",
+      "reason": "Interested in accurate cost tracking per new hire.",
+      "needs_clarification": false
+    },
+    {
+      "name": "New Employees",
+      "team": "N/A",
+      "impact_level": "High",
+      "involvement": "Informed",
+      "reason": "Directly affected by the onboarding process and their access to systems.",
+      "needs_clarification": false
+    }
+  ],
+  "existing_process": [
+    {
+      "step": 1,
+      "action": "Process new hire paperwork",
+      "actor": "HR Team",
+      "system": "Email and paper forms",
+      "pain_point": "Takes 3-5 days to process manually.",
+      "citation": "Current Pain Points",
+      "needs_clarification": false
+    },
+    {
+      "step": 2,
+      "action": "Provision IT access",
+      "actor": "IT Team",
+      "system": "Email and manual processes",
+      "pain_point": "Delays average 4 days.",
+      "citation": "Current Pain Points",
+      "needs_clarification": false
+    }
+  ],
+  "system_graph": "graph TD\n    subgraph In_Scope\n        Email[Email]\n        HRIS[HRIS]\n        Slack[Slack]\n    end\n\n    subgraph Out_Of_Scope\n    end\n\n    HR_Team[HR Team] -->|Process paperwork| Email\n    IT_Team[IT Team] -->|Provision access| Email\n    Email -->|Communicate| HRIS\n    Email -->|Communicate| Slack",
+  "gap_questions": [],
+  "gap_answers": {},
+  "gap_documents": [],
+  "clarity_score": 0,
+  "clarity_sufficient": false,
+  "clarity_confirmed": false,
+  "requirements": [],
+  "brd_draft": "",
+  "brd_approved": false,
+  "brd_final": "",
+  "user_stories": []
+}
