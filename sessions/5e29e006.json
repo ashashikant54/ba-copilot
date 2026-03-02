@@ -1,0 +1,198 @@
+{
+  "session_id": "5e29e006",
+  "org_id": "default",
+  "created_at": "2026-03-02 01:12:09",
+  "updated_at": "2026-03-02 01:12:29",
+  "stage": 6,
+  "stage_name": "BRD Preview",
+  "system_filter": "HR System",
+  "source_filter": "SharePoint",
+  "problem_raw": "Our HR department is struggling with manual onboarding.",
+  "clarifying_questions": [
+    {
+      "id": "Q1",
+      "question": "What is current onboarding duration?"
+    }
+  ],
+  "clarifying_answers": {
+    "Q1": "14 days on average"
+  },
+  "problem_refined": "HR onboarding takes 14 days via manual email and paper. 50 hires/month need Email, Slack, HRIS access on day 1 but provisioning delays average 4 days. Goal: reduce to 2 days with zero access delays.",
+  "problem_approved": false,
+  "impacted_systems": [
+    {
+      "name": "HRIS",
+      "impact_level": "High",
+      "in_scope": true,
+      "reason": "Core employee records system",
+      "needs_clarification": false
+    },
+    {
+      "name": "Email System",
+      "impact_level": "High",
+      "in_scope": true,
+      "reason": "Day 1 communication tool",
+      "needs_clarification": false
+    },
+    {
+      "name": "IT Provisioning",
+      "impact_level": "Medium",
+      "in_scope": true,
+      "reason": "Manages system access",
+      "needs_clarification": false
+    }
+  ],
+  "impacted_stakeholders": [
+    {
+      "name": "HR Manager",
+      "team": "HR",
+      "impact_level": "High",
+      "involvement": "Responsible",
+      "reason": "Owns onboarding process",
+      "needs_clarification": false
+    },
+    {
+      "name": "IT Department",
+      "team": "IT",
+      "impact_level": "High",
+      "involvement": "Responsible",
+      "reason": "Provisions access",
+      "needs_clarification": false
+    }
+  ],
+  "existing_process": [
+    {
+      "step": 1,
+      "action": "HR sends welcome email",
+      "actor": "HR Manager",
+      "system": "Email",
+      "pain_point": "Manual, no tracking",
+      "citation": "Source 1",
+      "needs_clarification": false
+    },
+    {
+      "step": 2,
+      "action": "IT receives access request",
+      "actor": "IT",
+      "system": "Email",
+      "pain_point": "Requests get lost, no SLA",
+      "citation": "Source 1",
+      "needs_clarification": false
+    }
+  ],
+  "system_graph": "",
+  "gap_questions": [
+    {
+      "id": "G1",
+      "question": "What is the SLA for IT access provisioning?"
+    },
+    {
+      "id": "G2",
+      "question": "Which systems need day-1 access?"
+    }
+  ],
+  "gap_answers": {
+    "G1": "Currently no SLA \u2014 target is 4 hours",
+    "G2": "Email, Slack, HRIS, VPN"
+  },
+  "gap_documents": [],
+  "clarity_score": 0,
+  "clarity_sufficient": false,
+  "clarity_confirmed": false,
+  "requirements": [
+    {
+      "id": "REQ-001",
+      "type": "Functional",
+      "text": "The system shall automate IT access provisioning for new hires on day 1.",
+      "rationale": "To reduce delays in access provisioning and ensure new hires have the necessary access immediately.",
+      "source": "Knowledge base",
+      "confidence": "High",
+      "status": "accepted",
+      "edited_text": ""
+    },
+    {
+      "id": "REQ-002",
+      "type": "Functional",
+      "text": "The system shall provide real-time visibility into the onboarding status of each new hire.",
+      "rationale": "To allow HR to track the progress of onboarding and identify any bottlenecks.",
+      "source": "Knowledge base",
+      "confidence": "High",
+      "status": "edited",
+      "edited_text": "The system shall provision access within 2 hours of onboarding initiation."
+    },
+    {
+      "id": "REQ-003",
+      "type": "Functional",
+      "text": "The system shall ensure 100% compliance document completion for new hires.",
+      "rationale": "To avoid issues with missing or incorrectly filed compliance documents.",
+      "source": "Knowledge base",
+      "confidence": "High",
+      "status": "rejected",
+      "edited_text": ""
+    },
+    {
+      "id": "REQ-004",
+      "type": "Functional",
+      "text": "The system shall reduce the average onboarding time from 14 days to 2 days.",
+      "rationale": "To meet the business goal of faster onboarding.",
+      "source": "Knowledge base",
+      "confidence": "High",
+      "status": "accepted",
+      "edited_text": ""
+    },
+    {
+      "id": "REQ-005",
+      "type": "Non-Functional",
+      "text": "The system shall process IT access requests within a target SLA of 4 hours.",
+      "rationale": "To ensure timely access provisioning for new hires.",
+      "source": "Gap answer",
+      "confidence": "High",
+      "status": "accepted",
+      "edited_text": ""
+    },
+    {
+      "id": "REQ-006",
+      "type": "Process",
+      "text": "The system shall eliminate manual email and paper processes in onboarding.",
+      "rationale": "To reduce errors and improve efficiency in the onboarding process.",
+      "source": "Knowledge base",
+      "confidence": "High",
+      "status": "accepted",
+      "edited_text": ""
+    },
+    {
+      "id": "REQ-007",
+      "type": "Data",
+      "text": "The system shall capture and store all compliance documents for new hires.",
+      "rationale": "To ensure that all necessary documentation is available and correctly filed.",
+      "source": "Knowledge base",
+      "confidence": "High",
+      "status": "accepted",
+      "edited_text": ""
+    },
+    {
+      "id": "REQ-008",
+      "type": "Functional",
+      "text": "The system shall allow new employees to complete their own onboarding tasks.",
+      "rationale": "To streamline the onboarding process and reduce HR's manual workload.",
+      "source": "Knowledge base",
+      "confidence": "High",
+      "status": "accepted",
+      "edited_text": ""
+    },
+    {
+      "id": "REQ-009",
+      "type": "Functional",
+      "text": "The system shall provide a mechanism for HR to track the time spent on onboarding tasks.",
+      "rationale": "To measure and reduce HR's manual effort in the onboarding process.",
+      "source": "Knowledge base",
+      "confidence": "High",
+      "status": "accepted",
+      "edited_text": ""
+    }
+  ],
+  "brd_draft": "",
+  "brd_approved": false,
+  "brd_final": "",
+  "user_stories": []
+}
