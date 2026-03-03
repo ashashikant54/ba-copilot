@@ -1,8 +1,16 @@
 # document_registry.py
-# Tracks every document that has been uploaded and indexed.
-# Stored in document_registry.json on disk.
+# UPDATED FOR AZURE CLOUD DEPLOYMENT
 #
-# Structure:
+# WHAT CHANGED FROM THE ORIGINAL:
+#   - Registry was saved as "document_registry.json" on your laptop's hard drive
+#   - Now saved to Azure Blob Storage as "document_registry.json" in the "documents" container
+#   - ALL function names and logic stay EXACTLY the same
+#
+# WHY WE CHANGED THIS:
+#   - Azure App Service wipes local files on every restart
+#   - Your document registry would be lost, making all uploaded docs disappear from the UI
+#
+# Structure of registry (UNCHANGED):
 # [
 #   {
 #     "id": "abc123",
@@ -22,22 +30,84 @@ import os
 import uuid
 from datetime import datetime
 
-REGISTRY_FILE = "document_registry.json"
+# ── NEW IMPORTS FOR AZURE BLOB STORAGE ────────────────────────
+# Same imports as session_manager.py — these load the Azure library
+from azure.storage.blob import BlobServiceClient
+from azure.core.exceptions import ResourceNotFoundError
+
+# ── CONFIGURATION ──────────────────────────────────────────────
+# OLD CODE saved to a local file:
+#   REGISTRY_FILE = "document_registry.json"
+#
+# NEW CODE reads the connection string from your environment settings.
+# Same connection string you already set up for session_manager.py!
+AZURE_CONNECTION_STRING = os.environ.get("AZURE_STORAGE_CONNECTION_STRING")
+DOCUMENTS_CONTAINER = "documents"       # The Azure Blob container name
+REGISTRY_BLOB_NAME  = "document_registry.json"  # The file name inside that container
 
 
+# ── HELPER: Get the Azure Blob Container ──────────────────────
+# Same pattern as session_manager.py — connects to Azure Blob Storage
+def _get_container():
+    """Connect to Azure Blob Storage and return the documents container."""
+    if not AZURE_CONNECTION_STRING:
+        raise EnvironmentError(
+            "❌ AZURE_STORAGE_CONNECTION_STRING is not set!\n"
+            "  On your laptop: add it to your .env file\n"
+            "  On Azure: add it in App Service → Configuration → App Settings"
+        )
+    blob_service = BlobServiceClient.from_connection_string(AZURE_CONNECTION_STRING)
+    container = blob_service.get_container_client(DOCUMENTS_CONTAINER)
+    # Create the container if it doesn't exist yet
+    try:
+        container.create_container()
+    except Exception:
+        pass  # Container already exists — that's fine
+    return container
+
+
+# ── Load Registry from Azure ───────────────────────────────────
 def load_registry():
-    """Load all document records from disk."""
-    if not os.path.exists(REGISTRY_FILE):
+    """Load all document records from Azure Blob Storage."""
+    # OLD CODE:
+    #   if not os.path.exists(REGISTRY_FILE):
+    #       return []
+    #   with open(REGISTRY_FILE, "r") as f:
+    #       return json.load(f)
+    #
+    # NEW CODE: download "document_registry.json" from Azure Blob Storage
+    try:
+        container = _get_container()
+        blob = container.get_blob_client(REGISTRY_BLOB_NAME)
+        data = blob.download_blob().readall()       # Download the file bytes
+        return json.loads(data.decode("utf-8"))     # Convert bytes → list of records
+    except ResourceNotFoundError:
+        # File doesn't exist yet — return empty list (same as original behaviour)
         return []
-    with open(REGISTRY_FILE, "r", encoding="utf-8") as f:
-        return json.load(f)
 
 
+# ── Save Registry to Azure ─────────────────────────────────────
 def save_registry(registry):
-    """Save registry to disk."""
-    with open(REGISTRY_FILE, "w", encoding="utf-8") as f:
-        json.dump(registry, f, indent=2)
+    """Save registry to Azure Blob Storage."""
+    # OLD CODE:
+    #   with open(REGISTRY_FILE, "w") as f:
+    #       json.dump(registry, f, indent=2)
+    #
+    # NEW CODE: upload "document_registry.json" to Azure Blob Storage
+    container = _get_container()
+    data = json.dumps(registry, indent=2)           # Convert list → JSON text
+    container.upload_blob(
+        name=REGISTRY_BLOB_NAME,
+        data=data,
+        overwrite=True,         # overwrite=True means "update if it already exists"
+        encoding="utf-8"
+    )
 
+
+# ── All functions below are COMPLETELY UNCHANGED ───────────────
+# Only load_registry() and save_registry() changed above.
+# Everything else works exactly as before because they all
+# call load_registry() and save_registry() internally.
 
 def register_document(
     document_name,
@@ -49,6 +119,7 @@ def register_document(
     """
     Add a document record after successful indexing.
     Called by the upload endpoint after embed_and_store completes.
+    (UNCHANGED)
     """
     registry = load_registry()
 
@@ -69,12 +140,12 @@ def register_document(
 
 
 def get_all_documents():
-    """Return all document records."""
+    """Return all document records. (UNCHANGED)"""
     return load_registry()
 
 
 def get_documents_by_system(system_name):
-    """Return all documents for a specific system."""
+    """Return all documents for a specific system. (UNCHANGED)"""
     return [
         doc for doc in load_registry()
         if doc["system_name"] == system_name
@@ -82,7 +153,7 @@ def get_documents_by_system(system_name):
 
 
 def get_documents_by_source(system_name, source_type):
-    """Return all documents for a specific system + source."""
+    """Return all documents for a specific system + source. (UNCHANGED)"""
     return [
         doc for doc in load_registry()
         if doc["system_name"] == system_name
@@ -92,7 +163,7 @@ def get_documents_by_source(system_name, source_type):
 
 def get_registry_as_tree():
     """
-    Return documents organised as a hierarchy tree.
+    Return documents organised as a hierarchy tree. (UNCHANGED)
     Structure:
     {
       "HR System": {
@@ -122,7 +193,7 @@ def get_registry_as_tree():
 
 
 def delete_document(doc_id):
-    """Remove a document record by ID."""
+    """Remove a document record by ID. (UNCHANGED)"""
     registry = load_registry()
     original = len(registry)
     registry = [d for d in registry if d["id"] != doc_id]
@@ -136,7 +207,7 @@ def delete_document(doc_id):
 
 # ── TEST ──────────────────────────────────────────────────────
 if __name__ == "__main__":
-    print("Testing document registry...\n")
+    print("Testing document registry with Azure Blob Storage...\n")
 
     # Register some test documents
     register_document(
@@ -174,4 +245,4 @@ if __name__ == "__main__":
                       f"{doc['file_size_kb']}KB, "
                       f"{doc['upload_date']})")
 
-    print("\n✅ Document registry working!")
+    print("\n✅ Document registry working with Azure Blob Storage!")

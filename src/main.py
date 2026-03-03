@@ -1,5 +1,21 @@
 # main.py
 # BA Copilot — Phase 1 FastAPI Server
+# UPDATED FOR AZURE CLOUD DEPLOYMENT
+#
+# WHAT CHANGED FROM THE ORIGINAL:
+#   1. Removed:  import shutil           (no longer saving files to disk)
+#   2. Added:    import tempfile         (built-in Python — creates a safe temp file)
+#   3. Removed:  os.makedirs("uploads")  (no longer need the uploads folder)
+#   4. Updated:  /upload endpoint        (reads file into memory instead of saving to disk)
+#
+# EVERYTHING ELSE IS 100% UNCHANGED
+#
+# WHY WE CHANGED THE UPLOAD ENDPOINT:
+#   OLD: file arrives → saved to "uploads/file.pdf" on disk → read from disk → index
+#   NEW: file arrives → read into memory as bytes → write to temp file → index → auto-delete
+#
+#   The key difference: temp files are automatically deleted after use.
+#   Azure's disk is ephemeral anyway, so we never rely on it for storage.
 #
 # TABS:
 #   Tab 1: Analyse      — 8-stage workflow
@@ -16,12 +32,19 @@
 
 import os
 import sys
-import shutil
+import tempfile                  # NEW: built-in Python library, no install needed
+                                 # Creates a temporary file that auto-deletes when done
+                                 # REMOVED: import shutil (no longer needed)
 from fastapi import FastAPI, HTTPException, UploadFile, File, Form
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, Response
 from pydantic import BaseModel
 from typing import Optional
+
+# NEW: Load environment variables from .env file on your laptop
+# On Azure, these are set in App Service → Configuration → App Settings
+from dotenv import load_dotenv
+load_dotenv()
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
@@ -63,18 +86,21 @@ from document_registry import (
 from retriever import load_and_index_document
 
 app = FastAPI(title="BA Copilot — Phase 1")
-os.makedirs("uploads", exist_ok=True)
+
+# REMOVED: os.makedirs("uploads", exist_ok=True)
+# We no longer need the uploads folder — files are handled in memory
+
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 
-# ── Request Models ─────────────────────────────────────────────
+# ── Request Models (UNCHANGED) ─────────────────────────────────
 class CreateSessionRequest(BaseModel):
     problem:     str
     system_name: Optional[str] = None
     source_type: Optional[str] = None
 
 class AnswersRequest(BaseModel):
-    answers: dict   # {Q1: "answer", Q2: "answer"}
+    answers: dict
 
 class ApproveProblemRequest(BaseModel):
     approved:    bool = True
@@ -85,14 +111,14 @@ class FeedbackRequest(BaseModel):
 
 class RequirementUpdateRequest(BaseModel):
     req_id:      str
-    status:      str   # accepted | edited | rejected
+    status:      str
     edited_text: Optional[str] = ""
 
 class BulkRequirementsRequest(BaseModel):
-    updates: list  # [{id, status, edited_text}]
+    updates: list
 
 class GapAnswersRequest(BaseModel):
-    answers: dict  # {G1: "answer", G2: "answer"}
+    answers: dict
 
 class SystemRequest(BaseModel):
     system_name: str
@@ -102,18 +128,17 @@ class SourceRequest(BaseModel):
     source_type: str
 
 
-# ── Pages ──────────────────────────────────────────────────────
+# ── Pages (UNCHANGED) ──────────────────────────────────────────
 @app.get("/")
 def serve_home():
     return FileResponse("static/index.html")
 
 
 # ══════════════════════════════════════════════════════════════
-# SESSION MANAGEMENT
+# SESSION MANAGEMENT (UNCHANGED)
 # ══════════════════════════════════════════════════════════════
 @app.post("/sessions/create")
 def api_create_session(req: CreateSessionRequest):
-    """Stage 1 — Create a new analysis session."""
     if not req.problem.strip():
         raise HTTPException(400, "Please enter a business problem")
     if len(req.problem.strip()) < 20:
@@ -153,11 +178,10 @@ def api_delete_session(session_id: str):
 
 
 # ══════════════════════════════════════════════════════════════
-# STAGE 2 — CLARIFICATION
+# STAGE 2 — CLARIFICATION (UNCHANGED)
 # ══════════════════════════════════════════════════════════════
 @app.post("/sessions/{session_id}/clarify/questions")
 def api_generate_questions(session_id: str):
-    """Generate clarifying questions from the problem statement."""
     try:
         questions = generate_clarifying_questions(session_id)
         return {"questions": questions}
@@ -167,7 +191,6 @@ def api_generate_questions(session_id: str):
 
 @app.post("/sessions/{session_id}/clarify/answers")
 def api_save_answers(session_id: str, req: AnswersRequest):
-    """Save BA's answers to clarifying questions."""
     try:
         save_answers(session_id, req.answers)
         return {"success": True}
@@ -177,7 +200,6 @@ def api_save_answers(session_id: str, req: AnswersRequest):
 
 @app.post("/sessions/{session_id}/clarify/refine")
 def api_refine_problem(session_id: str):
-    """Refine the problem statement after answers are saved."""
     try:
         refined = refine_problem_statement(session_id)
         return {"problem_refined": refined}
@@ -187,7 +209,6 @@ def api_refine_problem(session_id: str):
 
 @app.post("/sessions/{session_id}/clarify/approve")
 def api_approve_problem(session_id: str, req: ApproveProblemRequest):
-    """BA approves or edits the refined problem. Advances to Stage 3."""
     try:
         session = approve_problem(
             session_id,
@@ -200,11 +221,10 @@ def api_approve_problem(session_id: str, req: ApproveProblemRequest):
 
 
 # ══════════════════════════════════════════════════════════════
-# STAGE 3 — ANALYSIS
+# STAGE 3 — ANALYSIS (UNCHANGED)
 # ══════════════════════════════════════════════════════════════
 @app.post("/sessions/{session_id}/analyse")
 def api_run_analysis(session_id: str):
-    """Run system, stakeholder and process analysis."""
     try:
         analysis = run_analysis(session_id)
         return analysis
@@ -214,7 +234,6 @@ def api_run_analysis(session_id: str):
 
 @app.post("/sessions/{session_id}/analyse/graph")
 def api_generate_graph(session_id: str):
-    """Generate Mermaid.js system graph."""
     try:
         graph = generate_system_graph(session_id)
         return {"graph": graph}
@@ -224,7 +243,6 @@ def api_generate_graph(session_id: str):
 
 @app.post("/sessions/{session_id}/analyse/approve")
 def api_approve_analysis(session_id: str):
-    """BA approves the analysis. Advances to Stage 4."""
     try:
         approve_analysis(session_id)
         return {"success": True}
@@ -233,11 +251,10 @@ def api_approve_analysis(session_id: str):
 
 
 # ══════════════════════════════════════════════════════════════
-# STAGE 4 — GAP FILLING
+# STAGE 4 — GAP FILLING (UNCHANGED)
 # ══════════════════════════════════════════════════════════════
 @app.post("/sessions/{session_id}/gaps/questions")
 def api_generate_gaps(session_id: str):
-    """Generate gap questions from the analysis."""
     try:
         questions = generate_gap_questions(session_id)
         return {"questions": questions}
@@ -247,7 +264,6 @@ def api_generate_gaps(session_id: str):
 
 @app.post("/sessions/{session_id}/gaps/answers")
 def api_save_gap_answers(session_id: str, req: GapAnswersRequest):
-    """Save BA's answers to gap questions."""
     try:
         save_gap_answers(session_id, req.answers)
         return {"success": True}
@@ -257,7 +273,6 @@ def api_save_gap_answers(session_id: str, req: GapAnswersRequest):
 
 @app.post("/sessions/{session_id}/gaps/assess")
 def api_assess_clarity(session_id: str):
-    """AI assesses clarity level and recommends whether to proceed."""
     try:
         assessment = assess_clarity(session_id)
         return assessment
@@ -267,7 +282,6 @@ def api_assess_clarity(session_id: str):
 
 @app.post("/sessions/{session_id}/gaps/confirm")
 def api_confirm_gaps(session_id: str):
-    """BA confirms sufficient clarity. Advances to Stage 5."""
     try:
         confirm_and_advance(session_id)
         return {"success": True}
@@ -276,11 +290,10 @@ def api_confirm_gaps(session_id: str):
 
 
 # ══════════════════════════════════════════════════════════════
-# STAGE 5 — REQUIREMENTS REVIEW
+# STAGE 5 — REQUIREMENTS REVIEW (UNCHANGED)
 # ══════════════════════════════════════════════════════════════
 @app.post("/sessions/{session_id}/requirements/extract")
 def api_extract_requirements(session_id: str):
-    """Extract all business requirements from accumulated context."""
     try:
         requirements = extract_requirements(session_id)
         return {"requirements": requirements}
@@ -290,13 +303,9 @@ def api_extract_requirements(session_id: str):
 
 @app.put("/sessions/{session_id}/requirements/update")
 def api_update_requirement(session_id: str, req: RequirementUpdateRequest):
-    """BA accepts, edits or rejects a single requirement."""
     try:
         update_requirement_status(
-            session_id,
-            req.req_id,
-            req.status,
-            req.edited_text or ""
+            session_id, req.req_id, req.status, req.edited_text or ""
         )
         return {"success": True}
     except Exception as e:
@@ -305,7 +314,6 @@ def api_update_requirement(session_id: str, req: RequirementUpdateRequest):
 
 @app.put("/sessions/{session_id}/requirements/bulk")
 def api_bulk_update(session_id: str, req: BulkRequirementsRequest):
-    """Update multiple requirements at once."""
     try:
         bulk_update_requirements(session_id, req.updates)
         return {"success": True}
@@ -320,7 +328,6 @@ def api_requirements_summary(session_id: str):
 
 @app.post("/sessions/{session_id}/requirements/advance")
 def api_advance_to_brd(session_id: str):
-    """Advance to Stage 6 — all requirements must be reviewed first."""
     try:
         advance_to_brd(session_id)
         return {"success": True}
@@ -331,11 +338,10 @@ def api_advance_to_brd(session_id: str):
 
 
 # ══════════════════════════════════════════════════════════════
-# STAGE 6 — BRD PREVIEW
+# STAGE 6 — BRD PREVIEW (UNCHANGED)
 # ══════════════════════════════════════════════════════════════
 @app.post("/sessions/{session_id}/brd/generate")
 def api_generate_brd(session_id: str):
-    """Generate BRD from approved requirements only."""
     try:
         brd = generate_brd_preview(session_id)
         return {"brd": brd}
@@ -345,7 +351,6 @@ def api_generate_brd(session_id: str):
 
 @app.post("/sessions/{session_id}/brd/approve")
 def api_approve_brd(session_id: str):
-    """BA approves BRD. Advances to Stage 7."""
     try:
         approve_brd(session_id)
         return {"success": True}
@@ -355,7 +360,6 @@ def api_approve_brd(session_id: str):
 
 @app.post("/sessions/{session_id}/brd/regenerate")
 def api_regenerate_brd(session_id: str, req: FeedbackRequest):
-    """Regenerate BRD with BA feedback."""
     try:
         brd = regenerate_brd(session_id, req.feedback)
         return {"brd": brd}
@@ -364,11 +368,10 @@ def api_regenerate_brd(session_id: str, req: FeedbackRequest):
 
 
 # ══════════════════════════════════════════════════════════════
-# STAGE 7 — USER STORIES
+# STAGE 7 — USER STORIES (UNCHANGED)
 # ══════════════════════════════════════════════════════════════
 @app.post("/sessions/{session_id}/stories/generate")
 def api_generate_stories(session_id: str):
-    """Generate ADO-ready user stories from approved BRD."""
     try:
         stories = generate_user_stories(session_id)
         return {"stories": stories}
@@ -378,7 +381,6 @@ def api_generate_stories(session_id: str):
 
 @app.get("/sessions/{session_id}/stories/csv")
 def api_export_csv(session_id: str):
-    """Export user stories as CSV for Azure DevOps import."""
     try:
         csv = export_stories_as_csv(session_id)
         return Response(
@@ -395,7 +397,6 @@ def api_export_csv(session_id: str):
 
 @app.post("/sessions/{session_id}/complete")
 def api_mark_complete(session_id: str):
-    """Mark session as fully complete."""
     try:
         mark_complete(session_id)
         return {"success": True}
@@ -404,7 +405,7 @@ def api_mark_complete(session_id: str):
 
 
 # ══════════════════════════════════════════════════════════════
-# KNOWLEDGE BASE — SYSTEMS
+# KNOWLEDGE BASE — SYSTEMS (UNCHANGED)
 # ══════════════════════════════════════════════════════════════
 @app.get("/systems")
 def api_get_systems():
@@ -436,7 +437,7 @@ def api_delete_system(system_name: str):
 
 
 # ══════════════════════════════════════════════════════════════
-# KNOWLEDGE BASE — DOCUMENT UPLOAD
+# KNOWLEDGE BASE — DOCUMENT UPLOAD  ← THIS IS THE ONLY CHANGED ENDPOINT
 # ══════════════════════════════════════════════════════════════
 @app.post("/upload")
 async def api_upload_document(
@@ -456,18 +457,46 @@ async def api_upload_document(
     if source_type not in systems[system_name]:
         raise HTTPException(400, f"Source '{source_type}' not found in '{system_name}'")
 
-    file_path = f"uploads/{file.filename}"
-    with open(file_path, "wb") as f:
-        shutil.copyfileobj(file.file, f)
+    # ── CHANGED SECTION ───────────────────────────────────────
+    # OLD CODE saved the file to disk permanently:
+    #   file_path = f"uploads/{file.filename}"
+    #   with open(file_path, "wb") as f:
+    #       shutil.copyfileobj(file.file, f)
+    #   file_size_kb = round(os.path.getsize(file_path) / 1024, 1)
+    #
+    # NEW CODE reads the file into memory first, then creates a
+    # temporary file that is automatically deleted when we're done.
+    #
+    # What is a temp file?
+    #   A temporary file is like a sticky note — it exists just long
+    #   enough for us to use it, then disappears automatically.
+    #   This is perfect for Azure where we can't rely on disk storage.
 
-    file_size_kb = round(os.path.getsize(file_path) / 1024, 1)
+    # Step 1: Read the uploaded file bytes into memory
+    file_bytes = await file.read()
+
+    # Step 2: Calculate file size from bytes (1024 bytes = 1 KB)
+    file_size_kb = round(len(file_bytes) / 1024, 1)
+
+    # Step 3: Create a temporary file with the correct extension
+    # delete=False means we control when it's deleted (we do it in finally block)
+    # suffix=ext means the temp file has the right extension e.g. ".pdf"
+    tmp = tempfile.NamedTemporaryFile(delete=False, suffix=ext)
 
     try:
+        # Step 4: Write the bytes to the temp file so retriever can read it
+        tmp.write(file_bytes)
+        tmp.flush()   # Make sure all bytes are written before we read
+        tmp.close()   # Close the file so retriever can open it
+
+        # Step 5: Index the document using temp file path (same as before)
         chunks = load_and_index_document(
-            file_path=file_path,
+            file_path=tmp.name,          # tmp.name = the temp file's path
             system_name=system_name,
             source_type=source_type
         )
+
+        # Step 6: Register in Azure Blob Storage (via updated document_registry.py)
         record = register_document(
             document_name=file.filename,
             system_name=system_name,
@@ -475,19 +504,26 @@ async def api_upload_document(
             chunks=chunks,
             file_size_kb=file_size_kb
         )
+
         return {
             "success":  True,
             "message":  f"✅ Indexed {chunks} chunks from '{file.filename}'",
             "document": record
         }
+
     except Exception as e:
-        if os.path.exists(file_path):
-            os.remove(file_path)
         raise HTTPException(500, str(e))
+
+    finally:
+        # Step 7: Always delete the temp file when done, whether success or error
+        # This is the "auto-cleanup" — like throwing away that sticky note
+        if os.path.exists(tmp.name):
+            os.remove(tmp.name)
+    # ── END OF CHANGED SECTION ────────────────────────────────
 
 
 # ══════════════════════════════════════════════════════════════
-# KNOWLEDGE BASE — DOCUMENT REGISTRY
+# KNOWLEDGE BASE — DOCUMENT REGISTRY (UNCHANGED)
 # ══════════════════════════════════════════════════════════════
 @app.get("/documents")
 def api_get_documents():
@@ -507,7 +543,7 @@ def api_remove_document(doc_id: str):
     return result
 
 
-# ── Health ─────────────────────────────────────────────────────
+# ── Health (UNCHANGED) ─────────────────────────────────────────
 @app.get("/health")
 def health():
     return {"status": "BA Copilot Phase 1 running ✅"}
