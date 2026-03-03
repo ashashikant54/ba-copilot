@@ -6,5 +6,6 @@ langchain
 langchain-openai
 chromadb
 fastapi
-uvicorn
+uvicorn[standard]
 python-multipart
+azure-storage-blob>=12.19.0
