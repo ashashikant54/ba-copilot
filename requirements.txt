@@ -9,3 +9,4 @@ fastapi
 uvicorn[standard]
 python-multipart
 azure-storage-blob>=12.19.0
+azure-search-documents>=11.4.0
