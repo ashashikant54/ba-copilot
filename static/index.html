@@ -70,9 +70,14 @@ label{display:block;font-size:11px;color:#7a9bbe;font-weight:600;margin-bottom:5
 /* ── Stage Wizard ── */
 .stage-bar{display:flex;gap:4px;margin-bottom:20px;flex-wrap:wrap;}
 .stage-pill{padding:5px 12px;border-radius:20px;font-size:11px;font-weight:700;cursor:default;background:#162b50;color:#3a5470;border:1px solid #162b50;}
-.stage-pill.done{background:#166534;color:#86efac;border-color:#16a34a;}
+.stage-pill.done{background:#166534;color:#86efac;border-color:#16a34a;cursor:pointer;}
+.stage-pill.done:hover{background:#15803d;transform:scale(1.05);transition:.15s;}
 .stage-pill.active{background:#d4a017;color:#0a1628;border-color:#d4a017;}
 .stage-pill.pending{background:#162b50;color:#3a5470;}
+/* ADD THIS NEW BLOCK */
+.readonly-banner{background:#0a2d0a;border:1px solid #16a34a;border-radius:8px;
+  padding:10px 16px;margin-bottom:16px;display:flex;align-items:center;
+  justify-content:space-between;font-size:13px;color:#86efac;}
 
 .stage-panel{display:none;}
 .stage-panel.active{display:block;}
@@ -176,10 +181,10 @@ label{display:block;font-size:11px;color:#7a9bbe;font-weight:600;margin-bottom:5
 </style>
 </head>
 <body>
-
+<!-- CHANGE 2: Updated header title to "CoAnalytica" -->
 <header>
   <div>
-    <h1>⚡ CoAnalytica</h1> /* CHANGE 2: Updated header title to "CoAnalytica" */
+    <h1>⚡ CoAnalytica</h1>
     <p>AI-Powered Enterprise Analysis Platform</p>
   </div>
   <span class="badge">Phase 1</span>
@@ -197,14 +202,25 @@ label{display:block;font-size:11px;color:#7a9bbe;font-weight:600;margin-bottom:5
 <div id="tab-analyse" class="tab-content active">
 
   <!-- Stage Progress Bar -->
+  <div id="readonlyBanner" style="display:none;" class="readonly-banner">
+    <span>👁 Read-Only — Completed Session</span>
+    <span style="font-size:11px;">Click any stage pill to view · 
+      <button onclick="exitReadOnly()" 
+        style="background:#d4a017;color:#0a1628;border:none;border-radius:6px;
+              padding:4px 10px;font-size:11px;font-weight:700;cursor:pointer;margin-left:8px;">
+        ✏️ Start New Session
+      </button>
+    </span>
+  </div>
+
   <div class="stage-bar" id="stageBar">
-    <span class="stage-pill active" id="sp1">1 · Problem</span>
-    <span class="stage-pill pending" id="sp2">2 · Clarify</span>
-    <span class="stage-pill pending" id="sp3">3 · Analyse</span>
-    <span class="stage-pill pending" id="sp4">4 · Gaps</span>
-    <span class="stage-pill pending" id="sp5">5 · Requirements</span>
-    <span class="stage-pill pending" id="sp6">6 · BRD</span>
-    <span class="stage-pill pending" id="sp7">7 · Stories</span>
+    <span class="stage-pill active" id="sp1" onclick="navStage(1)">1 · Problem</span>
+    <span class="stage-pill pending" id="sp2" onclick="navStage(2)">2 · Clarify</span>
+    <span class="stage-pill pending" id="sp3" onclick="navStage(3)">3 · Analyse</span>
+    <span class="stage-pill pending" id="sp4" onclick="navStage(4)">4 · Gaps</span>
+    <span class="stage-pill pending" id="sp5" onclick="navStage(5)">5 · Requirements</span>
+    <span class="stage-pill pending" id="sp6" onclick="navStage(6)">6 · BRD</span>
+    <span class="stage-pill pending" id="sp7" onclick="navStage(7)">7 · Stories</span>
   </div>
 
   <!-- ── STAGE 1: Problem ── -->
@@ -1136,20 +1152,21 @@ async function loadSessions() {
   el.innerHTML = '';
   data.forEach(s => {
     const color = stageColors[s.stage] || '#3a5470';
+    const isComplete = s.stage === 8;
     el.innerHTML += `
-      <div class="session-card" onclick="resumeSession('${s.session_id}')">
+      <div class="session-card" 
+          style="${isComplete?'border-color:#16a34a;':''}"
+          onclick="${isComplete ? `viewCompletedSession('${s.session_id}')` : `resumeSession('${s.session_id}')`}">
         <div class="session-meta">
           <span style="font-size:12px;font-weight:700;
-                       color:${color};background:${color}22;
-                       padding:2px 8px;border-radius:10px;">
-            Stage ${s.stage}: ${s.stage_name}
+                      color:${color};background:${color}22;
+                      padding:2px 8px;border-radius:10px;">
+            ${isComplete ? '✅ Completed' : `Stage ${s.stage}: ${s.stage_name}`}
           </span>
-          <span style="font-size:11px;color:#3a5470;margin-left:auto">
-            ${s.updated_at}
-          </span>
-          <span style="font-size:11px;color:#3a5470">
-            ID: ${s.session_id}
-          </span>
+          ${isComplete ? `<span style="font-size:11px;color:#86efac;background:#0a2d0a;
+                          padding:2px 8px;border-radius:10px;">👁 Click to view</span>` : ''}
+          <span style="font-size:11px;color:#3a5470;margin-left:auto">${s.updated_at}</span>
+          <span style="font-size:11px;color:#3a5470">ID: ${s.session_id}</span>
         </div>
         <div class="session-problem">${s.problem_raw}</div>
       </div>`;
@@ -1429,6 +1446,49 @@ function showStatus(id, type, msg) {
   if(!el) return;
   el.className = `status show ${type}`;
   el.innerHTML = msg;
+}
+// ── Read-only completed session view ──────────────────────────
+function navStage(n) {
+  const pill = document.getElementById(`sp${n}`);
+  if(pill.classList.contains('pending')) return; // can't jump to future stages
+  document.querySelectorAll('.stage-panel').forEach(p=>p.classList.remove('active'));
+  document.getElementById(`stage-${n}`).classList.add('active');
+}
+
+async function viewCompletedSession(sessionId) {
+  currentSessionId = sessionId;
+  const res  = await fetch(`/sessions/${sessionId}`);
+  const data = await res.json();
+
+  // Restore all stage data (reuse existing resumeSession logic)
+  await resumeSession(sessionId);
+
+  // Mark ALL pills as done so they're all clickable
+  for(let i=1;i<=7;i++){
+    document.getElementById(`sp${i}`).className = 'stage-pill done';
+  }
+
+  // Show readonly banner, hide action buttons
+  document.getElementById('readonlyBanner').style.display = 'flex';
+  document.querySelectorAll('.btn-gold, .btn-green, .btn-red').forEach(btn => {
+    btn.style.display = 'none';
+  });
+
+  // Go to stories (last stage)
+  navStage(data.user_stories?.length ? 7 : data.stage);
+}
+
+function exitReadOnly() {
+  // Hide banner, re-show all buttons, reset
+  document.getElementById('readonlyBanner').style.display = 'none';
+  document.querySelectorAll('.btn-gold, .btn-green, .btn-red').forEach(btn => {
+    btn.style.display = '';
+  });
+  currentSessionId = null;
+  currentStage = 1;
+  goToStage(1);
+  updateStageBar(1);
+  document.getElementById('problemInput').value = '';
 }
 </script>
 </body>
