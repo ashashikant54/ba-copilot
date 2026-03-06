@@ -5,53 +5,88 @@
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
 <!-- CHANGE 1: Renamed from "BA Copilot" to "CoAnalytica" -->
 <title>CoAnalytica</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/mermaid/10.6.1/mermaid.min.js"></script>
 <style>
+:root{
+  --bg:        #f8fafc;
+  --bg2:       #f1f5f9;
+  --bg3:       #e2e8f0;
+  --white:     #ffffff;
+  --header:    #1e293b;
+  --blue:      #2563eb;
+  --blue-dk:   #1d4ed8;
+  --blue-lt:   #eff6ff;
+  --blue-mid:  #bfdbfe;
+  --green:     #16a34a;
+  --green-lt:  #f0fdf4;
+  --green-mid: #bbf7d0;
+  --red:       #dc2626;
+  --red-lt:    #fef2f2;
+  --red-mid:   #fecaca;
+  --amber:     #d97706;
+  --amber-lt:  #fffbeb;
+  --purple:    #7c3aed;
+  --ink1:      #0f172a;
+  --ink2:      #1e293b;
+  --ink3:      #475569;
+  --ink4:      #64748b;
+  --ink5:      #94a3b8;
+  --border:    #e2e8f0;
+  --border2:   #cbd5e1;
+  --shadow:    0 1px 3px rgba(15,23,42,.06),0 1px 2px rgba(15,23,42,.04);
+  --shadow2:   0 4px 16px rgba(15,23,42,.08),0 1px 3px rgba(15,23,42,.04);
+  --mono:      'IBM Plex Mono',monospace;
+}
 *{margin:0;padding:0;box-sizing:border-box;}
-body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#060d1a;color:#e8f0f8;min-height:100vh;}
+body{font-family:'IBM Plex Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--ink1);min-height:100vh;}
 
 /* ── Header ── */
-header{background:#0a1628;border-bottom:3px solid #d4a017;padding:14px 32px;display:flex;align-items:center;gap:16px;}
-header h1{font-size:22px;color:#d4a017;font-weight:700;}
-header p{font-size:12px;color:#7a9bbe;margin-top:2px;}
-.badge{background:#d4a017;color:#0a1628;font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px;margin-left:auto;}
+header{background:var(--header);padding:0 32px;display:flex;align-items:center;gap:14px;height:56px;box-shadow:0 1px 0 rgba(255,255,255,0.06);}
+.logo-icon{width:34px;height:34px;background:linear-gradient(135deg,#3b82f6,#7c3aed);border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:700;color:#fff;flex-shrink:0;}
+.logo-text{font-size:17px;font-weight:700;color:#fff;letter-spacing:-.4px;}
+.logo-sub{font-size:10px;color:rgba(255,255,255,.4);letter-spacing:1px;text-transform:uppercase;margin-top:1px;}
+.badge{background:linear-gradient(135deg,#3b82f6,#7c3aed);color:#fff;font-size:10px;font-weight:700;padding:4px 11px;border-radius:20px;margin-left:auto;letter-spacing:.5px;}
 
 /* ── Tabs ── */
-.tabs{background:#0a1628;display:flex;border-bottom:2px solid #162b50;}
-.tab{padding:12px 28px;font-size:13px;font-weight:600;cursor:pointer;color:#7a9bbe;border-bottom:3px solid transparent;transition:.2s;margin-bottom:-2px;}
-.tab.active{color:#d4a017;border-bottom-color:#d4a017;}
-.tab:hover{color:#e8f0f8;}
+.tabs{background:var(--header);display:flex;border-bottom:1px solid rgba(255,255,255,.07);}
+.tab{padding:14px 24px;font-size:13px;font-weight:500;cursor:pointer;color:rgba(255,255,255,.4);border-bottom:2px solid transparent;transition:.2s;margin-bottom:-1px;font-family:'IBM Plex Sans',sans-serif;}
+.tab.active{color:#fff;border-bottom-color:#60a5fa;}
+.tab:hover{color:rgba(255,255,255,.75);}
 .tab-content{display:none;padding:24px 32px;}
 .tab-content.active{display:block;}
 
 /* ── Cards ── */
-.card{background:#0f2040;border-radius:12px;padding:20px;border:1px solid #162b50;margin-bottom:16px;}
-.card-title{font-size:12px;font-weight:700;color:#d4a017;text-transform:uppercase;letter-spacing:1px;margin-bottom:14px;}
+.card{background:var(--white);border-radius:12px;padding:20px;border:1px solid var(--border);margin-bottom:16px;box-shadow:var(--shadow);transition:box-shadow .2s,border-color .2s;}
+.card:hover{box-shadow:var(--shadow2);border-color:var(--border2);}
+.card-title{font-size:11px;font-weight:700;color:var(--ink4);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:14px;display:flex;align-items:center;gap:7px;}
+.card-title::before{content:'';display:inline-block;width:3px;height:11px;background:linear-gradient(180deg,var(--blue),var(--purple));border-radius:2px;}
 
 /* ── Grid ── */
 .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
 .grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;}
 
 /* ── Form ── */
-input,select,textarea{width:100%;background:#060d1a;border:1px solid #162b50;border-radius:8px;color:#e8f0f8;font-size:13px;padding:9px 13px;font-family:inherit;transition:border-color .2s;}
-input:focus,select:focus,textarea:focus{outline:none;border-color:#d4a017;}
-input::placeholder,textarea::placeholder{color:#3a5470;}
-select option{background:#0a1628;}
-label{display:block;font-size:11px;color:#7a9bbe;font-weight:600;margin-bottom:5px;text-transform:uppercase;letter-spacing:.5px;}
+input,select,textarea{width:100%;background:var(--bg);border:1.5px solid var(--border);border-radius:8px;color:var(--ink1);font-size:13px;padding:9px 13px;font-family:'IBM Plex Sans',sans-serif;transition:border-color .2s,box-shadow .2s;}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px rgba(37,99,235,.08);background:var(--white);}
+input::placeholder,textarea::placeholder{color:var(--ink5);}
+select option{background:var(--white);color:var(--ink1);}
+label{display:block;font-size:11px;color:var(--ink3);font-weight:600;margin-bottom:5px;letter-spacing:.3px;}
 .field{margin-bottom:12px;}
 
 /* ── Buttons ── */
-.btn{padding:9px 18px;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;transition:.2s;}
-.btn-gold{background:#d4a017;color:#0a1628;}
-.btn-gold:hover{background:#f0c040;}
-.btn-navy{background:#162b50;color:#7a9bbe;border:1px solid #162b50;}
-.btn-navy:hover{background:#1e3a6e;color:#e8f0f8;}
-.btn-green{background:#166534;color:#86efac;}
-.btn-green:hover{background:#15803d;}
-.btn-red{background:#7f1d1d;color:#fca5a5;}
-.btn-red:hover{background:#991b1b;}
-.btn-full{width:100%;padding:12px;font-size:14px;margin-top:8px;}
-.btn:disabled{background:#3a5470;color:#7a9bbe;cursor:not-allowed;}
+.btn{padding:8px 16px;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;transition:.15s;font-family:'IBM Plex Sans',sans-serif;}
+.btn-gold{background:var(--blue);color:#fff;box-shadow:0 1px 4px rgba(37,99,235,.3);}
+.btn-gold:hover{background:var(--blue-dk);box-shadow:0 3px 12px rgba(37,99,235,.35);transform:translateY(-1px);}
+.btn-navy{background:var(--white);color:var(--ink3);border:1px solid var(--border);box-shadow:var(--shadow);}
+.btn-navy:hover{background:var(--bg);border-color:var(--border2);color:var(--ink1);}
+.btn-green{background:var(--green-lt);color:var(--green);border:1px solid var(--green-mid);}
+.btn-green:hover{background:var(--green-mid);}
+.btn-red{background:var(--red-lt);color:var(--red);border:1px solid var(--red-mid);}
+.btn-red:hover{background:var(--red-mid);}
+.btn-full{width:100%;padding:11px;font-size:13.5px;margin-top:8px;}
+.btn:disabled{background:var(--bg3);color:var(--ink5);cursor:not-allowed;box-shadow:none;transform:none;}
 .btn-row{display:flex;gap:8px;margin-top:10px;}
 .inline-row{display:flex;gap:8px;align-items:flex-end;}
 .inline-row>div{flex:1;}
@@ -59,133 +94,132 @@ label{display:block;font-size:11px;color:#7a9bbe;font-weight:600;margin-bottom:5
 /* ── Status ── */
 .status{margin-top:8px;padding:9px 13px;border-radius:8px;font-size:12px;display:none;}
 .status.show{display:block;}
-.status.ok{background:#0a2d0a;color:#86efac;border:1px solid #16a34a;}
-.status.err{background:#2d0a0a;color:#f87171;border:1px solid #dc2626;}
-.status.load{background:#162b50;color:#93c5fd;border:1px solid #162b50;}
+.status.ok{background:var(--green-lt);color:var(--green);border:1px solid var(--green-mid);}
+.status.err{background:var(--red-lt);color:var(--red);border:1px solid var(--red-mid);}
+.status.load{background:var(--blue-lt);color:var(--blue);border:1px solid var(--blue-mid);}
 
 /* ── Spinner ── */
-.spin{display:inline-block;width:12px;height:12px;border:2px solid #3a5470;border-top-color:#d4a017;border-radius:50%;animation:spin .8s linear infinite;margin-right:6px;vertical-align:middle;}
+.spin{display:inline-block;width:12px;height:12px;border:2px solid var(--blue-mid);border-top-color:var(--blue);border-radius:50%;animation:spin .8s linear infinite;margin-right:6px;vertical-align:middle;}
 @keyframes spin{to{transform:rotate(360deg);}}
 
 /* ── Stage Wizard ── */
-.stage-bar{display:flex;gap:4px;margin-bottom:20px;flex-wrap:wrap;}
-.stage-pill{padding:5px 12px;border-radius:20px;font-size:11px;font-weight:700;cursor:default;background:#162b50;color:#3a5470;border:1px solid #162b50;}
-.stage-pill.done{background:#166534;color:#86efac;border-color:#16a34a;cursor:pointer;}
-.stage-pill.done:hover{background:#15803d;transform:scale(1.05);transition:.15s;}
-.stage-pill.active{background:#d4a017;color:#0a1628;border-color:#d4a017;}
-.stage-pill.pending{background:#162b50;color:#3a5470;}
-/* ADD THIS NEW BLOCK */
-.readonly-banner{background:#0a2d0a;border:1px solid #16a34a;border-radius:8px;
-  padding:10px 16px;margin-bottom:16px;display:flex;align-items:center;
-  justify-content:space-between;font-size:13px;color:#86efac;}
-
+.stage-bar{display:flex;gap:5px;margin-bottom:20px;flex-wrap:wrap;}
+.stage-pill{padding:5px 13px;border-radius:6px;font-size:11px;font-weight:600;cursor:default;background:var(--bg2);color:var(--ink5);border:1px solid var(--border);font-family:var(--mono);}
+.stage-pill.done{background:var(--green-lt);color:var(--green);border-color:var(--green-mid);cursor:pointer;}
+.stage-pill.done:hover{background:var(--green-mid);box-shadow:0 2px 8px rgba(22,163,74,.2);}
+.stage-pill.active{background:var(--blue);color:#fff;border-color:var(--blue);box-shadow:0 2px 8px rgba(37,99,235,.3);}
+.stage-pill.pending{background:var(--bg2);color:var(--ink5);border-color:var(--border);}
+.readonly-banner{background:var(--green-lt);border:1px solid var(--green-mid);border-left:3px solid var(--green);border-radius:8px;padding:10px 16px;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;font-size:13px;color:var(--green);}
 .stage-panel{display:none;}
 .stage-panel.active{display:block;}
 
 /* ── Question Cards ── */
-.q-card{background:#060d1a;border:1px solid #162b50;border-radius:8px;padding:14px;margin-bottom:10px;}
-.q-card .q-text{font-size:13px;color:#e8f0f8;margin-bottom:4px;}
-.q-card .q-meta{font-size:11px;color:#3a5470;margin-bottom:8px;}
-.q-card .q-why{font-size:11px;color:#7a9bbe;font-style:italic;margin-bottom:8px;}
-.q-card textarea{min-height:60px;}
-.q-tag{display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;margin-right:4px;}
-.tag-high{background:#7f1d1d;color:#fca5a5;}
-.tag-med{background:#78350f;color:#fcd34d;}
-.tag-low{background:#1e3a6e;color:#93c5fd;}
-.tag-info{background:#162b50;color:#7a9bbe;}
+.q-card{background:var(--bg);border:1px solid var(--border);border-radius:9px;padding:14px;margin-bottom:10px;}
+.q-card .q-text{font-size:13px;color:var(--ink1);margin-bottom:4px;font-weight:500;}
+.q-card .q-meta{font-size:11px;color:var(--ink5);margin-bottom:8px;}
+.q-card .q-why{font-size:11px;color:var(--ink4);font-style:italic;margin-bottom:8px;}
+.q-card textarea{min-height:60px;background:var(--white);}
+.q-tag{display:inline-block;padding:2px 8px;border-radius:5px;font-size:10px;font-weight:700;margin-right:4px;}
+.tag-high{background:var(--red-lt);color:var(--red);}
+.tag-med{background:var(--amber-lt);color:var(--amber);}
+.tag-low{background:var(--blue-lt);color:var(--blue);}
+.tag-info{background:var(--bg2);color:var(--ink4);border:1px solid var(--border);}
 
 /* ── Analysis Cards ── */
 .analysis-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;}
-.sys-card{background:#060d1a;border-radius:8px;padding:12px;border-left:4px solid #d4a017;}
-.sys-card.out-scope{border-left-color:#3a5470;}
-.sys-card .sys-name{font-size:13px;font-weight:700;color:#e8f0f8;}
+.sys-card{background:var(--bg);border-radius:9px;padding:13px;border:1px solid var(--border);border-left:3px solid var(--blue);transition:all .15s;}
+.sys-card:hover{background:var(--white);box-shadow:var(--shadow);}
+.sys-card.out-scope{border-left-color:var(--border2);}
+.sys-card .sys-name{font-size:13px;font-weight:600;color:var(--ink1);}
 .sys-card .sys-impact{font-size:11px;margin-top:4px;}
-.sys-card .sys-reason{font-size:11px;color:#7a9bbe;margin-top:6px;}
-.sys-card .sys-evidence{font-size:10px;color:#3a5470;margin-top:4px;font-style:italic;}
-.impact-high{color:#f87171;}
-.impact-med{color:#fcd34d;}
-.impact-low{color:#86efac;}
+.sys-card .sys-reason{font-size:11px;color:var(--ink4);margin-top:6px;}
+.sys-card .sys-evidence{font-size:10px;color:var(--ink5);margin-top:4px;font-style:italic;}
+.impact-high{color:var(--red);}
+.impact-med{color:var(--amber);}
+.impact-low{color:var(--green);}
 
 .stakeholder-table{width:100%;border-collapse:collapse;font-size:12px;}
-.stakeholder-table th{background:#162b50;color:#7a9bbe;padding:8px 10px;text-align:left;font-size:11px;text-transform:uppercase;}
-.stakeholder-table td{padding:8px 10px;border-bottom:1px solid #0f2040;color:#c8d8e8;}
-.stakeholder-table tr:hover td{background:#0a1628;}
+.stakeholder-table th{background:var(--bg2);color:var(--ink4);padding:8px 12px;text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.8px;font-weight:600;border-bottom:1px solid var(--border);}
+.stakeholder-table td{padding:9px 12px;border-bottom:1px solid var(--bg2);color:var(--ink2);}
+.stakeholder-table tr:hover td{background:var(--bg);}
+.stakeholder-table td:first-child{color:var(--ink1);font-weight:500;}
 
 .process-step{display:flex;gap:12px;margin-bottom:8px;align-items:flex-start;}
-.step-num{background:#d4a017;color:#0a1628;font-weight:700;font-size:12px;width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:2px;}
-.step-num.needs-clarification{background:#dc2626;}
-.step-body{flex:1;background:#060d1a;border-radius:6px;padding:10px;border:1px solid #162b50;}
-.step-action{font-size:13px;color:#e8f0f8;}
-.step-meta{font-size:11px;color:#3a5470;margin-top:3px;}
-.step-pain{font-size:11px;color:#f87171;margin-top:4px;}
+.step-num{background:var(--blue);color:#fff;font-weight:700;font-size:12px;width:26px;height:26px;border-radius:7px;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:2px;font-family:var(--mono);}
+.step-num.needs-clarification{background:var(--red);}
+.step-body{flex:1;background:var(--bg);border-radius:7px;padding:10px;border:1px solid var(--border);}
+.step-action{font-size:13px;color:var(--ink1);font-weight:500;}
+.step-meta{font-size:11px;color:var(--ink5);margin-top:3px;}
+.step-pain{font-size:11px;color:var(--red);margin-top:4px;}
 
 /* ── Mermaid graph ── */
-.graph-box{background:#060d1a;border:1px solid #162b50;border-radius:8px;padding:20px;overflow-x:auto;margin-bottom:12px;}
+.graph-box{background:var(--bg);border:1px solid var(--border);border-radius:9px;padding:20px;overflow-x:auto;margin-bottom:12px;}
 .graph-box svg{max-width:100%;}
 
 /* ── Requirements ── */
-.req-card{background:#060d1a;border:1px solid #162b50;border-radius:8px;padding:14px;margin-bottom:10px;transition:border-color .2s;}
-.req-card.accepted{border-color:#16a34a;}
-.req-card.edited{border-color:#d4a017;}
-.req-card.rejected{border-color:#dc2626;opacity:.5;}
+.req-card{background:var(--white);border:1px solid var(--border);border-radius:9px;padding:14px;margin-bottom:10px;transition:border-color .2s;box-shadow:var(--shadow);}
+.req-card.accepted{border-color:var(--green);border-left:3px solid var(--green);}
+.req-card.edited{border-color:var(--amber);border-left:3px solid var(--amber);}
+.req-card.rejected{border-color:var(--red);opacity:.5;}
 .req-header{display:flex;align-items:center;gap:8px;margin-bottom:8px;}
-.req-id{font-size:11px;font-weight:700;color:#d4a017;}
-.req-type{font-size:10px;padding:2px 7px;border-radius:10px;background:#162b50;color:#7a9bbe;}
-.req-confidence{font-size:10px;color:#3a5470;}
-.req-text{font-size:13px;color:#e8f0f8;margin-bottom:10px;line-height:1.5;}
-.req-rationale{font-size:11px;color:#7a9bbe;font-style:italic;margin-bottom:10px;}
+.req-id{font-size:11px;font-weight:700;color:var(--blue);font-family:var(--mono);}
+.req-type{font-size:10px;padding:2px 7px;border-radius:5px;background:var(--blue-lt);color:var(--blue);border:1px solid var(--blue-mid);font-weight:600;}
+.req-confidence{font-size:10px;color:var(--ink5);}
+.req-text{font-size:13px;color:var(--ink1);margin-bottom:10px;line-height:1.55;}
+.req-rationale{font-size:11px;color:var(--ink4);font-style:italic;margin-bottom:10px;}
 .req-actions{display:flex;gap:6px;flex-wrap:wrap;}
 .req-edit-box{margin-top:8px;display:none;}
 .req-edit-box.show{display:block;}
 
 /* ── BRD Output ── */
-.brd-output{background:#060d1a;border:1px solid #162b50;border-radius:8px;padding:20px;min-height:400px;font-size:13px;line-height:1.7;white-space:pre-wrap;color:#c8d8e8;overflow-y:auto;max-height:600px;}
+.brd-output{background:var(--bg);border:1px solid var(--border);border-radius:9px;padding:20px;min-height:400px;font-size:13px;line-height:1.75;white-space:pre-wrap;color:var(--ink2);overflow-y:auto;max-height:600px;font-family:var(--mono);}
 
 /* ── Story Cards ── */
-.story-card{background:#060d1a;border:1px solid #162b50;border-radius:8px;padding:14px;margin-bottom:10px;}
+.story-card{background:var(--white);border:1px solid var(--border);border-radius:9px;padding:14px;margin-bottom:10px;box-shadow:var(--shadow);}
 .story-header{display:flex;align-items:center;gap:8px;margin-bottom:10px;}
-.story-id{font-size:11px;font-weight:700;color:#d4a017;}
-.story-parent{font-size:10px;color:#3a5470;}
-.story-title{font-size:13px;font-weight:700;color:#e8f0f8;margin-bottom:8px;}
-.story-format{font-size:12px;color:#c8d8e8;line-height:1.8;margin-bottom:10px;}
+.story-id{font-size:11px;font-weight:700;color:var(--blue);font-family:var(--mono);}
+.story-parent{font-size:10px;color:var(--ink5);}
+.story-title{font-size:13px;font-weight:600;color:var(--ink1);margin-bottom:8px;}
+.story-format{font-size:12.5px;color:var(--ink2);line-height:1.9;margin-bottom:10px;background:var(--bg);border-radius:7px;padding:10px 13px;border:1px solid var(--border);}
 .story-ac{margin-top:8px;}
-.story-ac-title{font-size:11px;font-weight:700;color:#7a9bbe;margin-bottom:4px;text-transform:uppercase;}
-.story-ac-item{font-size:12px;color:#86efac;margin-bottom:3px;padding-left:12px;}
+.story-ac-title{font-size:10px;font-weight:700;color:var(--ink4);margin-bottom:6px;text-transform:uppercase;letter-spacing:1px;}
+.story-ac-item{font-size:12px;color:var(--green);margin-bottom:4px;padding-left:14px;}
 .story-ac-item::before{content:"✓ ";}
-.story-meta{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;}
-.story-tag{background:#162b50;color:#7a9bbe;font-size:10px;padding:2px 7px;border-radius:10px;}
+.story-meta{display:flex;gap:6px;margin-top:10px;flex-wrap:wrap;}
+.story-tag{background:var(--blue-lt);color:var(--blue);font-size:10px;padding:2px 8px;border-radius:5px;border:1px solid var(--blue-mid);font-weight:600;}
 
 /* ── Clarity meter ── */
-.clarity-bar{height:10px;background:#162b50;border-radius:5px;margin:8px 0;}
-.clarity-fill{height:100%;border-radius:5px;transition:width .5s;}
+.clarity-bar{height:8px;background:var(--bg3);border-radius:4px;margin:8px 0;overflow:hidden;}
+.clarity-fill{height:100%;border-radius:4px;transition:width .5s;}
 
 /* ── Session list ── */
-.session-card{background:#060d1a;border:1px solid #162b50;border-radius:8px;padding:14px;margin-bottom:10px;cursor:pointer;transition:border-color .2s;}
-.session-card:hover{border-color:#d4a017;}
+.session-card{background:var(--white);border:1px solid var(--border);border-radius:9px;padding:14px;margin-bottom:10px;cursor:pointer;transition:all .15s;box-shadow:var(--shadow);}
+.session-card:hover{border-color:var(--blue);box-shadow:var(--shadow2);transform:translateY(-1px);}
 .session-meta{display:flex;gap:8px;align-items:center;margin-bottom:6px;flex-wrap:wrap;}
-.session-problem{font-size:12px;color:#7a9bbe;line-height:1.4;}
+.session-problem{font-size:12.5px;color:var(--ink3);line-height:1.5;}
 
 /* ── Knowledge Base tab ── */
 .kb-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;}
-.upload-zone{border:2px dashed #162b50;border-radius:10px;padding:28px;text-align:center;cursor:pointer;transition:.2s;margin:10px 0;}
-.upload-zone:hover,.upload-zone.drag{border-color:#d4a017;background:#0a1628;}
+.upload-zone{border:2px dashed var(--border);border-radius:10px;padding:28px;text-align:center;cursor:pointer;transition:.2s;margin:10px 0;background:var(--bg);}
+.upload-zone:hover,.upload-zone.drag{border-color:var(--blue);background:var(--blue-lt);}
 .upload-zone span{font-size:28px;}
-.upload-zone p{color:#3a5470;font-size:12px;margin-top:6px;}
-.tree-system-hdr{display:flex;align-items:center;gap:8px;background:#162b50;border-radius:8px;padding:9px 13px;font-weight:700;color:#d4a017;margin-bottom:6px;}
-.tree-source-hdr{display:flex;align-items:center;gap:8px;background:#0a1628;border-radius:6px;padding:7px 12px;font-weight:600;color:#7a9bbe;font-size:12px;margin:4px 0 4px 16px;}
-.tree-doc{display:flex;align-items:center;justify-content:space-between;margin:3px 0 3px 32px;background:#060d1a;border-radius:6px;padding:6px 10px;font-size:12px;color:#a0c4e2;border:1px solid #0f2040;}
-.tree-doc-meta{color:#3a5470;font-size:10px;margin-top:2px;}
-.doc-badge{background:#162b50;color:#7a9bbe;font-size:10px;padding:1px 6px;border-radius:10px;}
-.pill{display:inline-flex;align-items:center;gap:4px;background:#162b50;border-radius:20px;padding:3px 10px;font-size:12px;color:#7a9bbe;margin:3px;}
-.empty-state{color:#3a5470;text-align:center;padding:20px;font-size:13px;}
+.upload-zone p{color:var(--ink4);font-size:12px;margin-top:6px;}
+.tree-system-hdr{display:flex;align-items:center;gap:8px;background:var(--bg2);border-radius:8px;padding:9px 13px;font-weight:600;color:var(--ink1);margin-bottom:6px;border:1px solid var(--border);}
+.tree-source-hdr{display:flex;align-items:center;gap:8px;background:var(--bg);border-radius:6px;padding:7px 12px;font-weight:500;color:var(--ink3);font-size:12px;margin:4px 0 4px 16px;border:1px solid var(--border);}
+.tree-doc{display:flex;align-items:center;justify-content:space-between;margin:3px 0 3px 32px;background:var(--white);border-radius:6px;padding:7px 11px;font-size:12px;color:var(--ink2);border:1px solid var(--border);}
+.tree-doc-meta{color:var(--ink5);font-size:10px;margin-top:2px;}
+.doc-badge{background:var(--blue-lt);color:var(--blue);font-size:10px;padding:2px 7px;border-radius:10px;border:1px solid var(--blue-mid);font-weight:600;}
+.pill{display:inline-flex;align-items:center;gap:4px;background:var(--blue-lt);border:1px solid var(--blue-mid);border-radius:20px;padding:3px 10px;font-size:12px;color:var(--blue);margin:3px;font-weight:500;}
+.empty-state{color:var(--ink5);text-align:center;padding:20px;font-size:13px;}
 </style>
 </head>
 <body>
 <!-- CHANGE 2: Updated header title to "CoAnalytica" -->
 <header>
+  <div class="logo-icon">C</div>
   <div>
-    <h1>⚡ CoAnalytica</h1>
-    <p>AI-Powered Enterprise Analysis Platform</p>
+    <div class="logo-text">CoAnalytica</div>
+    <div class="logo-sub">AI-Powered Enterprise Analysis Platform</div>
   </div>
   <span class="badge">Phase 1</span>
 </header>
@@ -194,6 +228,7 @@ label{display:block;font-size:11px;color:#7a9bbe;font-weight:600;margin-bottom:5
   <div class="tab active" onclick="showTab('analyse',this)">⚡ Analyse</div>
   <div class="tab" onclick="showTab('kb',this)">🗂 Knowledge Base</div>
   <div class="tab" onclick="showTab('sessions',this)">📋 Sessions</div>
+  <div class="tab" onclick="showTab('meetings',this)">🎥 Meetings</div>
 </div>
 
 <!-- ═══════════════════════════════════════════════
@@ -206,7 +241,7 @@ label{display:block;font-size:11px;color:#7a9bbe;font-weight:600;margin-bottom:5
     <span>👁 Read-Only — Completed Session</span>
     <span style="font-size:11px;">Click any stage pill to view · 
       <button onclick="exitReadOnly()" 
-        style="background:#d4a017;color:#0a1628;border:none;border-radius:6px;
+        style="background:var(--green);color:#fff;border:none;border-radius:6px;
               padding:4px 10px;font-size:11px;font-weight:700;cursor:pointer;margin-left:8px;">
         ✏️ Start New Session
       </button>
@@ -253,14 +288,14 @@ label{display:block;font-size:11px;color:#7a9bbe;font-weight:600;margin-bottom:5
       </div>
       <div class="card">
         <div class="card-title">💡 What Happens Next</div>
-        <div style="font-size:13px;color:#7a9bbe;line-height:2.2;">
-          <div>1️⃣  <strong style="color:#e8f0f8">Clarification</strong> — AI asks targeted questions</div>
-          <div>2️⃣  <strong style="color:#e8f0f8">Problem Refinement</strong> — Measurable statement</div>
-          <div>3️⃣  <strong style="color:#e8f0f8">System Analysis</strong> — Impacted systems + stakeholders</div>
-          <div>4️⃣  <strong style="color:#e8f0f8">Gap Filling</strong> — Human-in-the-loop Q&A</div>
-          <div>5️⃣  <strong style="color:#e8f0f8">Requirements</strong> — Accept / Edit / Reject</div>
-          <div>6️⃣  <strong style="color:#e8f0f8">BRD Preview</strong> — Review and approve</div>
-          <div>7️⃣  <strong style="color:#e8f0f8">User Stories</strong> — ADO-ready export</div>
+        <div style="font-size:13px;color:var(--ink4);line-height:2.2;">
+          <div>1️⃣  <strong style="color:var(--ink1)">Clarification</strong> — AI asks targeted questions</div>
+          <div>2️⃣  <strong style="color:var(--ink1)">Problem Refinement</strong> — Measurable statement</div>
+          <div>3️⃣  <strong style="color:var(--ink1)">System Analysis</strong> — Impacted systems + stakeholders</div>
+          <div>4️⃣  <strong style="color:var(--ink1)">Gap Filling</strong> — Human-in-the-loop Q&A</div>
+          <div>5️⃣  <strong style="color:var(--ink1)">Requirements</strong> — Accept / Edit / Reject</div>
+          <div>6️⃣  <strong style="color:var(--ink1)">BRD Preview</strong> — Review and approve</div>
+          <div>7️⃣  <strong style="color:var(--ink1)">User Stories</strong> — ADO-ready export</div>
         </div>
       </div>
     </div>
@@ -276,7 +311,7 @@ label{display:block;font-size:11px;color:#7a9bbe;font-weight:600;margin-bottom:5
 
     <div class="card">
       <div class="card-title">❓ Clarifying Questions</div>
-      <p style="font-size:12px;color:#7a9bbe;margin-bottom:14px;">
+      <p style="font-size:12px;color:var(--ink4);margin-bottom:14px;">
         Answer each question — the AI will use your answers to refine the problem statement.
       </p>
       <div id="questionsContainer"></div>
@@ -290,7 +325,7 @@ label{display:block;font-size:11px;color:#7a9bbe;font-weight:600;margin-bottom:5
 
     <div class="card" id="refinedProblemCard" style="display:none;">
       <div class="card-title">✏️ Refined Problem Statement</div>
-      <p style="font-size:12px;color:#7a9bbe;margin-bottom:10px;">
+      <p style="font-size:12px;color:var(--ink4);margin-bottom:10px;">
         Review the AI-refined problem statement. Edit if needed, then approve.
       </p>
       <textarea id="refinedProblemText" rows="5"></textarea>
@@ -314,9 +349,9 @@ label{display:block;font-size:11px;color:#7a9bbe;font-weight:600;margin-bottom:5
     <div class="card">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
         <div class="card-title" style="margin:0;">🏢 Impacted Systems</div>
-        <div id="s3Legend" style="font-size:11px;color:#7a9bbe;">
-          <span style="color:#d4a017;">▌</span> In Scope &nbsp;
-          <span style="color:#3a5470;">▌</span> Out of Scope
+        <div id="s3Legend" style="font-size:11px;color:var(--ink4);">
+          <span style="color:var(--blue);">▌</span> In Scope &nbsp;
+          <span style="color:var(--ink5);">▌</span> Out of Scope
         </div>
       </div>
       <div id="systemsGrid" class="analysis-grid"></div>
@@ -365,7 +400,7 @@ label{display:block;font-size:11px;color:#7a9bbe;font-weight:600;margin-bottom:5
 
     <div class="card">
       <div class="card-title">🔍 Gap Questions</div>
-      <p style="font-size:12px;color:#7a9bbe;margin-bottom:14px;">
+      <p style="font-size:12px;color:var(--ink4);margin-bottom:14px;">
         Answer these questions to fill critical gaps.
         You can type answers or upload new documents in the Knowledge Base tab.
       </p>
@@ -396,9 +431,9 @@ label{display:block;font-size:11px;color:#7a9bbe;font-weight:600;margin-bottom:5
     <div class="card">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
         <div class="card-title" style="margin:0;">📋 Business Requirements</div>
-        <div id="reqSummaryBadges" style="font-size:12px;color:#7a9bbe;"></div>
+        <div id="reqSummaryBadges" style="font-size:12px;color:var(--ink4);"></div>
       </div>
-      <p style="font-size:12px;color:#7a9bbe;margin-bottom:14px;">
+      <p style="font-size:12px;color:var(--ink4);margin-bottom:14px;">
         Review each requirement. Accept, edit, or reject before generating the BRD.
       </p>
       <div id="requirementsContainer"></div>
@@ -576,7 +611,7 @@ label{display:block;font-size:11px;color:#7a9bbe;font-weight:600;margin-bottom:5
   // ADD at the very top of your <script> block
 mermaid.initialize({ 
   startOnLoad: false, 
-  theme: 'dark',
+  theme: 'default',
   securityLevel: 'loose'
 });
 // ── State ───────────────────────────────────────────────────────
@@ -598,8 +633,9 @@ function showTab(name, el) {
   document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
   document.getElementById(`tab-${name}`).classList.add('active');
   if(el) el.classList.add('active');
-  if(name==='kb') { loadDocTree(); renderSystemsPills(); }
+  if(name==='kb') { loadDocTree(); renderSystemsPills(); populateMeetingDropdowns(); }
   if(name==='sessions') loadSessions();
+  if(name==='meetings') { populateMeetingDropdowns(); loadMeetings(); }
 }
 
 // ── Stage Navigation ────────────────────────────────────────────
@@ -768,7 +804,7 @@ function renderAnalysis(data, graph) {
         <td>${st.team}</td>
         <td class="${impCls}">${st.impact_level}</td>
         <td>${st.involvement}</td>
-        <td style="color:#7a9bbe">${st.reason}</td>
+        <td style="color:var(--ink4)">${st.reason}</td>
       </tr>`;
   });
 
@@ -784,7 +820,7 @@ function renderAnalysis(data, graph) {
           <div class="step-action">${p.action}</div>
           <div class="step-meta">
             👤 ${p.actor} &nbsp;|&nbsp; 💻 ${p.system}
-            ${needsClarify?' &nbsp;|&nbsp; <span style="color:#f87171">⚠️ Needs clarification</span>':''}
+            ${needsClarify?' &nbsp;|&nbsp; <span style="color:var(--red)">⚠️ Needs clarification</span>':''}
           </div>
           ${p.pain_point?`<div class="step-pain">⚠ ${p.pain_point}</div>`:''}
         </div>
@@ -806,9 +842,9 @@ async function renderGraph(graphDef) {
     box.innerHTML = svg;
   } catch(e) {
     box.innerHTML = `
-      <div style="padding:12px;background:#060d1a;border-radius:8px;">
-        <div style="font-size:11px;color:#d4a017;margin-bottom:8px;">⚠️ Graph preview unavailable</div>
-        <pre style="color:#7a9bbe;font-size:11px;white-space:pre-wrap;line-height:1.6;">${cleaned}</pre>
+      <div style="padding:12px;background:var(--bg);border-radius:8px;border:1px solid var(--border);">
+        <div style="font-size:11px;color:var(--amber);font-weight:600;margin-bottom:8px;">⚠️ Graph preview unavailable</div>
+        <pre style="color:var(--ink4);font-size:11px;white-space:pre-wrap;line-height:1.6;font-family:var(--mono)">${cleaned}</pre>
       </div>`;
   }
 }
@@ -891,35 +927,35 @@ function renderClarityAssessment(data) {
   const actions = document.getElementById('clarityActions');
 
   const score    = data.clarity_score || 0;
-  const color    = score >= 75 ? '#16a34a' : score >= 60 ? '#d4a017' : '#dc2626';
+  const color    = score >= 75 ? 'var(--green)' : score >= 60 ? 'var(--amber)' : 'var(--red)';
   const sufficient = data.sufficient;
 
   content.innerHTML = `
     <div style="margin-bottom:12px;">
       <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
-        <span style="font-size:13px;color:#e8f0f8;">Clarity Score</span>
+        <span style="font-size:13px;color:var(--ink1);font-weight:500;">Clarity Score</span>
         <span style="font-size:18px;font-weight:700;color:${color}">${score}%</span>
       </div>
       <div class="clarity-bar">
         <div class="clarity-fill"
              style="width:${score}%;background:${color}"></div>
       </div>
-      <div style="font-size:12px;color:#7a9bbe;margin-top:8px;">${data.reasoning||''}</div>
+      <div style="font-size:12px;color:var(--ink4);margin-top:8px;">${data.reasoning||''}</div>
     </div>
     <div style="font-size:12px;margin-bottom:8px;">
-      <strong style="color:${sufficient?'#86efac':'#fcd34d'}">
+      <strong style="color:${sufficient?'var(--green)':'var(--amber)'}">
         ${data.recommendation}
       </strong>
     </div>
     ${(data.remaining_risks||[]).length ? `
       <div style="margin-bottom:8px;">
-        <div style="font-size:11px;color:#7a9bbe;margin-bottom:4px;">REMAINING RISKS:</div>
-        ${data.remaining_risks.map(r=>`<div style="font-size:12px;color:#f87171;">• ${r}</div>`).join('')}
+        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--ink5);margin-bottom:4px;">Remaining Risks</div>
+        ${data.remaining_risks.map(r=>`<div style="font-size:12px;color:var(--red);">• ${r}</div>`).join('')}
       </div>` : ''}
     ${(data.assumptions_to_note||[]).length ? `
       <div>
-        <div style="font-size:11px;color:#7a9bbe;margin-bottom:4px;">ASSUMPTIONS:</div>
-        ${data.assumptions_to_note.map(a=>`<div style="font-size:12px;color:#fcd34d;">• ${a}</div>`).join('')}
+        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--ink5);margin-bottom:4px;">Assumptions</div>
+        ${data.assumptions_to_note.map(a=>`<div style="font-size:12px;color:var(--amber);">• ${a}</div>`).join('')}
       </div>` : ''}
   `;
 
@@ -974,7 +1010,7 @@ function renderRequirements(requirements) {
           <span class="req-id">${req.id}</span>
           <span class="req-type">${req.type}</span>
           <span class="q-tag ${confCls}">${req.confidence} confidence</span>
-          <span style="margin-left:auto;font-size:11px;color:#3a5470"
+          <span style="margin-left:auto;font-size:11px;color:var(--ink5)"
                 id="status-${req.id}">Pending</span>
         </div>
         <div class="req-text">${req.text}</div>
@@ -1025,8 +1061,8 @@ async function updateReq(reqId, status, editedText='') {
 
   const statusEl = document.getElementById(`status-${reqId}`);
   statusEl.textContent = status.charAt(0).toUpperCase() + status.slice(1);
-  statusEl.style.color = status==='accepted' ? '#86efac' :
-                          status==='edited'   ? '#fcd34d' : '#f87171';
+  statusEl.style.color = status==='accepted' ? 'var(--green)' :
+                          status==='edited'   ? 'var(--amber)' : 'var(--red)';
 
   updateReqSummary();
 }
@@ -1042,10 +1078,10 @@ function updateReqSummary() {
   });
 
   document.getElementById('reqSummaryBadges').innerHTML = `
-    <span style="color:#86efac">✅ ${accepted}</span> &nbsp;
-    <span style="color:#fcd34d">✏️ ${edited}</span> &nbsp;
-    <span style="color:#f87171">❌ ${rejected}</span> &nbsp;
-    <span style="color:#3a5470">⏳ ${pending} pending</span>
+    <span style="color:var(--green);font-weight:600;">✅ ${accepted} accepted</span> &nbsp;
+    <span style="color:var(--amber);font-weight:600;">✏️ ${edited} edited</span> &nbsp;
+    <span style="color:var(--red);font-weight:600;">❌ ${rejected} rejected</span> &nbsp;
+    <span style="color:var(--ink5);">⏳ ${pending} pending</span>
   `;
 
   const btn = document.getElementById('generateBrdBtn');
@@ -1162,7 +1198,7 @@ function renderStories(stories) {
           ${criteria}
         </div>
         <div class="story-meta">${tags}</div>
-        ${s.notes?`<div style="font-size:11px;color:#7a9bbe;margin-top:8px">📝 ${s.notes}</div>`:''}
+        ${s.notes?`<div style="font-size:11px;color:var(--ink4);margin-top:8px">📝 ${s.notes}</div>`:''}
       </div>`;
   });
 }
@@ -1191,28 +1227,28 @@ async function loadSessions() {
   }
 
   const stageColors = {
-    1:'#3a5470', 2:'#5b21b6', 3:'#0e7490',
-    4:'#92400e', 5:'#166534', 6:'#d4a017', 7:'#d4a017', 8:'#16a34a'
+    1:'#94a3b8', 2:'#7c3aed', 3:'#0ea5e9',
+    4:'#d97706', 5:'#16a34a', 6:'#2563eb', 7:'#2563eb', 8:'#16a34a'
   };
 
   el.innerHTML = '';
   data.forEach(s => {
-    const color = stageColors[s.stage] || '#3a5470';
+    const color = stageColors[s.stage] || '#94a3b8';
     const isComplete = s.stage === 8;
     el.innerHTML += `
       <div class="session-card" 
-          style="${isComplete?'border-color:#16a34a;':''}"
+          style="${isComplete?'border-left:3px solid var(--green);':'border-left:3px solid var(--border);'}"
           onclick="${isComplete ? `viewCompletedSession('${s.session_id}')` : `resumeSession('${s.session_id}')`}">
         <div class="session-meta">
           <span style="font-size:12px;font-weight:700;
-                      color:${color};background:${color}22;
+                      color:${color};background:${color}18;
                       padding:2px 8px;border-radius:10px;">
             ${isComplete ? '✅ Completed' : `Stage ${s.stage}: ${s.stage_name}`}
           </span>
-          ${isComplete ? `<span style="font-size:11px;color:#86efac;background:#0a2d0a;
-                          padding:2px 8px;border-radius:10px;">👁 Click to view</span>` : ''}
-          <span style="font-size:11px;color:#3a5470;margin-left:auto">${s.updated_at}</span>
-          <span style="font-size:11px;color:#3a5470">ID: ${s.session_id}</span>
+          ${isComplete ? `<span style="font-size:11px;color:var(--green);background:var(--green-lt);border:1px solid var(--green-mid);
+                          padding:2px 8px;border-radius:6px;font-weight:600;">👁 View</span>` : ''}
+          <span style="font-size:11px;color:var(--ink5);margin-left:auto">${s.updated_at}</span>
+          <span style="font-size:11px;color:var(--ink5);font-family:var(--mono)">ID: ${s.session_id}</span>
         </div>
         <div class="session-problem">${s.problem_raw}</div>
       </div>`;
@@ -1341,12 +1377,12 @@ function renderSystemsPills() {
   let html = '';
   for(const [sys, srcs] of Object.entries(systems)) {
     html += `<div style="margin-bottom:10px;">
-      <div style="font-size:12px;font-weight:700;color:#d4a017;margin-bottom:4px;">
+      <div style="font-size:12px;font-weight:600;color:var(--ink1);margin-bottom:4px;">
         🏢 ${sys}
       </div>
       <div style="margin-left:12px;">
         ${srcs.map(s=>`<span class="pill">📁 ${s}</span>`).join('')
-          || '<span style="color:#3a5470;font-size:11px;">No sources yet</span>'}
+          || '<span style="color:var(--ink5);font-size:11px;">No sources yet</span>'}
       </div>
     </div>`;
   }
@@ -1400,7 +1436,7 @@ function setFile(file) {
   selectedFile = file;
   document.getElementById('fileName').textContent =
     `📄 ${file.name} (${(file.size/1024).toFixed(1)} KB)`;
-  document.getElementById('uploadZone').style.borderColor = '#d4a017';
+  document.getElementById('uploadZone').style.borderColor = '#2563eb';
 }
 
 async function uploadDocument() {
@@ -1428,7 +1464,7 @@ async function uploadDocument() {
       showStatus('uploadStatus','ok', data.message);
       selectedFile = null;
       document.getElementById('fileName').textContent = 'Drag & drop or click to browse';
-      document.getElementById('uploadZone').style.borderColor = '#162b50';
+      document.getElementById('uploadZone').style.borderColor = 'var(--border)';
       document.getElementById('fileInput').value = '';
       await loadDocTree();
     } else {
@@ -1596,5 +1632,121 @@ async function editFromStage(stageNum) {
   showStatus(`s${stageNum}Status`, 'ok', `✅ Reverted to Stage ${stageNum} — make your edits and continue`);
 }
 </script>
+
+
+<!-- ═══════════════════════════════════════════════
+     TAB 4 — MEETINGS
+═══════════════════════════════════════════════ -->
+<div id="tab-meetings" class="tab-content">
+
+  <div class="grid-2">
+
+    <!-- Upload Meeting Recording -->
+    <div class="card">
+      <div class="card-title">🎙️ Upload Meeting Recording</div>
+
+      <div class="field">
+        <label>Meeting Title</label>
+        <input type="text" id="meetingTitle"
+          placeholder="e.g. OPT Finance Discovery — Jan 2026">
+      </div>
+      <div class="field">
+        <label>Related System (optional)</label>
+        <select id="meetingSystem">
+          <option value="">— Select System —</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>File</label>
+        <div class="upload-zone" id="meetingUploadZone"
+             onclick="document.getElementById('meetingFileInput').click()"
+             ondragover="event.preventDefault();this.classList.add('drag')"
+             ondragleave="this.classList.remove('drag')"
+             ondrop="handleMeetingDrop(event)">
+          <span>🎙️</span>
+          <p id="meetingFileName">Drag & drop or click to browse</p>
+          <p style="font-size:11px;margin-top:4px;">.mp4 · .vtt · .txt · .docx</p>
+        </div>
+        <input type="file" id="meetingFileInput" accept=".mp4,.vtt,.txt,.docx"
+               style="display:none" onchange="handleMeetingFileSelect(this)">
+      </div>
+      <button class="btn btn-gold btn-full" id="processMeetingBtn"
+              onclick="processMeeting()">
+        🔍 Process Meeting
+      </button>
+      <div id="meetingStatus" class="status"></div>
+    </div>
+
+    <!-- Processing Pipeline -->
+    <div class="card">
+      <div class="card-title">⚙️ Processing Pipeline</div>
+      <div id="meetingPipeline">
+        <div style="color:var(--ink5);font-size:13px;text-align:center;padding:20px;">
+          Upload a meeting recording to begin processing.
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Meeting Results (shown after processing) -->
+  <div id="meetingResults" style="display:none;">
+    <div class="grid-2">
+
+      <div class="card">
+        <div class="card-title">📋 Meeting Summary</div>
+        <div id="meetingSummary" style="font-size:13px;color:var(--ink2);line-height:1.7;"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">✅ Decisions & Action Items</div>
+        <div id="meetingDecisions" style="font-size:13px;color:var(--ink2);line-height:1.7;"></div>
+      </div>
+
+    </div>
+
+    <div class="grid-2">
+
+      <div class="card">
+        <div class="card-title">❓ Open Questions & Gaps</div>
+        <div id="meetingGaps" style="font-size:13px;color:var(--ink2);line-height:1.7;"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">💾 Store in Knowledge Base</div>
+        <div class="field">
+          <label>Target System</label>
+          <select id="meetingStoreSystem">
+            <option value="">— Select System —</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Target Source</label>
+          <select id="meetingStoreSource">
+            <option value="">— Select Source —</option>
+          </select>
+        </div>
+        <button class="btn btn-gold btn-full" onclick="storeMeetingToKb()">
+          💾 Approve & Store in Knowledge Base
+        </button>
+        <div id="meetingStoreStatus" class="status"></div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Past Meeting Recordings -->
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+      <div class="card-title" style="margin:0;">📼 Past Meeting Recordings</div>
+      <button class="btn btn-navy" onclick="loadMeetings()">🔄 Refresh</button>
+    </div>
+    <div id="meetingsList">
+      <div class="empty-state">No meeting recordings processed yet.</div>
+    </div>
+  </div>
+
+</div><!-- end tab-meetings -->
+
 </body>
 </html>
