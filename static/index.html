@@ -268,6 +268,12 @@ label{display:block;font-size:11px;color:#7a9bbe;font-weight:600;margin-bottom:5
 
   <!-- ── STAGE 2: Clarification ── -->
   <div id="stage-2" class="stage-panel">
+    <div id="editBar-2" class="btn-row" style="display:none;margin-bottom:12px;">
+      <button class="btn btn-navy" onclick="editFromStage(2)">
+        ✏️ Edit Clarification & Re-process forward
+      </button>
+    </div>
+
     <div class="card">
       <div class="card-title">❓ Clarifying Questions</div>
       <p style="font-size:12px;color:#7a9bbe;margin-bottom:14px;">
@@ -299,6 +305,12 @@ label{display:block;font-size:11px;color:#7a9bbe;font-weight:600;margin-bottom:5
 
   <!-- ── STAGE 3: Analysis ── -->
   <div id="stage-3" class="stage-panel">
+    <div id="editBar-3" class="btn-row" style="display:none;margin-bottom:12px;">
+      <button class="btn btn-navy" onclick="editFromStage(3)">
+        ✏️ Edit Analysis & Re-process forward
+      </button>
+    </div>
+
     <div class="card">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
         <div class="card-title" style="margin:0;">🏢 Impacted Systems</div>
@@ -345,6 +357,12 @@ label{display:block;font-size:11px;color:#7a9bbe;font-weight:600;margin-bottom:5
 
   <!-- ── STAGE 4: Gap Filling ── -->
   <div id="stage-4" class="stage-panel">
+    <div id="editBar-4" class="btn-row" style="display:none;margin-bottom:12px;">
+      <button class="btn btn-navy" onclick="editFromStage(4)">
+        ✏️ Edit Gap Answers & Re-process forward
+      </button>
+    </div>
+
     <div class="card">
       <div class="card-title">🔍 Gap Questions</div>
       <p style="font-size:12px;color:#7a9bbe;margin-bottom:14px;">
@@ -369,6 +387,12 @@ label{display:block;font-size:11px;color:#7a9bbe;font-weight:600;margin-bottom:5
 
   <!-- ── STAGE 5: Requirements ── -->
   <div id="stage-5" class="stage-panel">
+    <div id="editBar-5" class="btn-row" style="display:none;margin-bottom:12px;">
+      <button class="btn btn-navy" onclick="editFromStage(5)">
+        ✏️ Edit Requirements & Re-process forward
+      </button>
+    </div>
+
     <div class="card">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
         <div class="card-title" style="margin:0;">📋 Business Requirements</div>
@@ -390,6 +414,12 @@ label{display:block;font-size:11px;color:#7a9bbe;font-weight:600;margin-bottom:5
 
   <!-- ── STAGE 6: BRD Preview ── -->
   <div id="stage-6" class="stage-panel">
+    <div id="editBar-6" class="btn-row" style="display:none;margin-bottom:12px;">
+      <button class="btn btn-navy" onclick="editFromStage(6)">
+        ✏️ Edit BRD Feedback & Re-process forward
+      </button>
+    </div>
+
     <div class="card">
       <div class="card-title">📄 BRD Preview</div>
       <div id="brdOutput" class="brd-output">Generating BRD...</div>
@@ -1479,11 +1509,25 @@ function showStatus(id, type, msg) {
 }
 // ── Read-only completed session view ──────────────────────────
 function navStage(n) {
-  if(n < 1 || n > 7) return; // guard against stage 8
+  if(n < 1 || n > 7) return;
   const pill = document.getElementById(`sp${n}`);
-  if(pill.classList.contains('pending')) return;
+  if(pill.classList.contains('pending')) return; // can't go to future stages
   document.querySelectorAll('.stage-panel').forEach(p=>p.classList.remove('active'));
   document.getElementById(`stage-${n}`).classList.add('active');
+
+  // Show edit bar if going back in an active session
+  hideAllEditBars();
+  if(!isReadOnly && n < currentStage) {
+    const bar = document.getElementById(`editBar-${n}`);
+    if(bar) bar.style.display = 'flex';
+  }
+}
+
+function hideAllEditBars() {
+  for(let i=1;i<=7;i++){
+    const bar = document.getElementById(`editBar-${i}`);
+    if(bar) bar.style.display = 'none';
+  }
 }
 
 async function viewCompletedSession(sessionId) {
@@ -1520,6 +1564,36 @@ function exitReadOnly() {
   goToStage(1);
   updateStageBar(1);
   document.getElementById('problemInput').value = '';
+}
+
+// ── Edit from a previous stage & re-process forward ──────────
+async function editFromStage(stageNum) {
+  if(!currentSessionId) return;
+  if(!confirm(`Revert to Stage ${stageNum}? All work after this stage will be cleared and re-processed.`)) return;
+
+  showStatus(`s${stageNum}Status`, 'load', '<span class="spin"></span> Reverting session...');
+  hideAllEditBars();
+
+  // Call backend to revert
+  try {
+    const res  = await fetch(`/sessions/${currentSessionId}/revert`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({target_stage: stageNum})
+    });
+    if(!res.ok) {
+      const d = await res.json();
+      return showStatus(`s${stageNum}Status`, 'err', d.detail || 'Revert failed');
+    }
+  } catch(e) {
+    return showStatus(`s${stageNum}Status`, 'err', 'Revert failed: ' + e.message);
+  }
+
+  // Update local state
+  currentStage = stageNum;
+  updateStageBar(stageNum);
+  goToStage(stageNum);
+  showStatus(`s${stageNum}Status`, 'ok', `✅ Reverted to Stage ${stageNum} — make your edits and continue`);
 }
 </script>
 </body>

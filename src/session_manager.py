@@ -272,6 +272,36 @@ def get_session_summary(session_id):
 
     return summary
 
+# ── Revert Session to Previous Stage ──────────────────────────
+def revert_session(session_id: str, target_stage: int) -> dict:
+    """Revert session to a previous stage, clearing all data after it."""
+    session = load_session(session_id)
+
+    clear_map = {
+        2: ['clarifying_questions', 'clarifying_answers', 'problem_refined',
+            'problem_approved', 'impacted_systems', 'impacted_stakeholders',
+            'existing_process', 'system_graph', 'gap_questions', 'gap_answers',
+            'gap_documents', 'clarity_score', 'clarity_sufficient', 'clarity_confirmed',
+            'requirements', 'brd_draft', 'brd_approved', 'brd_final', 'user_stories'],
+        3: ['impacted_systems', 'impacted_stakeholders', 'existing_process',
+            'system_graph', 'gap_questions', 'gap_answers', 'gap_documents',
+            'clarity_score', 'clarity_sufficient', 'clarity_confirmed',
+            'requirements', 'brd_draft', 'brd_approved', 'brd_final', 'user_stories'],
+        4: ['gap_questions', 'gap_answers', 'gap_documents', 'clarity_score',
+            'clarity_sufficient', 'clarity_confirmed', 'requirements',
+            'brd_draft', 'brd_approved', 'brd_final', 'user_stories'],
+        5: ['requirements', 'brd_draft', 'brd_approved', 'brd_final', 'user_stories'],
+        6: ['brd_draft', 'brd_approved', 'brd_final', 'user_stories'],
+    }
+
+    for field in clear_map.get(target_stage, []):
+        session[field] = None
+
+    session['stage']      = target_stage
+    session['stage_name'] = STAGE_NAMES.get(target_stage, 'Unknown')
+
+    _save_session(session)
+    return session
 
 # ── TEST ──────────────────────────────────────────────────────
 if __name__ == "__main__":

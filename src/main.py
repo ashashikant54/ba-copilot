@@ -35,7 +35,7 @@ import sys
 import tempfile                  # NEW: built-in Python library, no install needed
                                  # Creates a temporary file that auto-deletes when done
                                  # REMOVED: import shutil (no longer needed)
-from fastapi import FastAPI, HTTPException, UploadFile, File, Form
+from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Body
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, Response
 from pydantic import BaseModel
@@ -50,7 +50,7 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from session_manager import (
     create_session, load_session, list_sessions,
-    delete_session, get_session_summary
+    delete_session, get_session_summary, revert_session
 )
 from clarification_module import (
     generate_clarifying_questions, save_answers,
@@ -175,6 +175,17 @@ def api_get_session_summary(session_id: str):
 @app.delete("/sessions/{session_id}")
 def api_delete_session(session_id: str):
     return delete_session(session_id)
+
+@app.post("/sessions/{session_id}/revert")
+async def api_revert_session(session_id: str, body: dict = Body(...)):
+    target_stage = body.get("target_stage")
+    if not target_stage or not (2 <= target_stage <= 6):
+        raise HTTPException(400, "target_stage must be between 2 and 6")
+    try:
+        revert_session(session_id, target_stage)
+        return {"message": f"Session reverted to stage {target_stage}"}
+    except Exception as e:
+        raise HTTPException(500, str(e))
 
 
 # ══════════════════════════════════════════════════════════════
