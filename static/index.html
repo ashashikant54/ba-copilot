@@ -543,6 +543,12 @@ label{display:block;font-size:11px;color:#7a9bbe;font-weight:600;margin-bottom:5
 </div>
 
 <script>
+  // ADD at the very top of your <script> block
+mermaid.initialize({ 
+  startOnLoad: false, 
+  theme: 'dark',
+  securityLevel: 'loose'
+});
 // ── State ───────────────────────────────────────────────────────
 let currentSessionId = null;
 let currentStage     = 1;
@@ -759,12 +765,22 @@ function renderAnalysis(data, graph) {
   renderGraph(graph);
 }
 
-function renderGraph(graphDef) {
+async function renderGraph(graphDef) {
   const box = document.getElementById('graphBox');
   if(!graphDef) { box.innerHTML='<div class="empty-state">No graph available</div>'; return; }
-  box.innerHTML = `<div class="mermaid">${graphDef}</div>`;
-  try { mermaid.init(undefined, box.querySelector('.mermaid')); }
-  catch(e) { box.innerHTML = `<pre style="color:#7a9bbe;font-size:11px">${graphDef}</pre>`; }
+  const cleaned = graphDef
+    .replace(/undefined/g, 'Unknown')
+    .replace(/null/g, 'Unknown');
+  try {
+    const { svg } = await mermaid.render('mermaid-graph', cleaned);
+    box.innerHTML = svg;
+  } catch(e) {
+    box.innerHTML = `
+      <div style="padding:12px;background:#060d1a;border-radius:8px;">
+        <div style="font-size:11px;color:#d4a017;margin-bottom:8px;">⚠️ Graph preview unavailable</div>
+        <pre style="color:#7a9bbe;font-size:11px;white-space:pre-wrap;line-height:1.6;">${cleaned}</pre>
+      </div>`;
+  }
 }
 
 async function approveAnalysis() {
@@ -1181,12 +1197,20 @@ async function resumeSession(sessionId) {
   const data = await res.json();
 
   // Restore the correct stage
-  const stage = data.stage;
+  const stage = Math.min(data.stage, 7); // cap at 7, stage 8 = complete
+  document.getElementById('problemInput').value = data.problem_raw || '';
   goToStage(stage);
 
   // Restore stage-specific UI state
   if(stage >= 2 && data.clarifying_questions?.length) {
     renderQuestions(data.clarifying_questions);
+    // Restore saved answers
+    if(data.clarifying_answers) {
+      Object.entries(data.clarifying_answers).forEach(([id, answer]) => {
+        const el = document.getElementById(`ans-${id}`);
+        if(el) el.value = answer;
+      });
+    }
     if(data.problem_refined) {
       document.getElementById('refinedProblemText').value = data.problem_refined;
       document.getElementById('refinedProblemCard').style.display = 'block';
@@ -1201,6 +1225,12 @@ async function resumeSession(sessionId) {
   }
   if(stage >= 4 && data.gap_questions?.length) {
     renderGapQuestions(data.gap_questions);
+    if(data.gap_answers) {
+      Object.entries(data.gap_answers).forEach(([id, answer]) => {
+        const el = document.getElementById(`gap-${id}`);
+        if(el) el.value = answer;
+      });
+    }
   }
   if(stage >= 5 && data.requirements?.length) {
     currentRequirements = data.requirements;
@@ -1449,8 +1479,9 @@ function showStatus(id, type, msg) {
 }
 // ── Read-only completed session view ──────────────────────────
 function navStage(n) {
+  if(n < 1 || n > 7) return; // guard against stage 8
   const pill = document.getElementById(`sp${n}`);
-  if(pill.classList.contains('pending')) return; // can't jump to future stages
+  if(pill.classList.contains('pending')) return;
   document.querySelectorAll('.stage-panel').forEach(p=>p.classList.remove('active'));
   document.getElementById(`stage-${n}`).classList.add('active');
 }
@@ -1475,7 +1506,7 @@ async function viewCompletedSession(sessionId) {
   });
 
   // Go to stories (last stage)
-  navStage(data.user_stories?.length ? 7 : data.stage);
+  navStage(7); // completed sessions always show stories tab
 }
 
 function exitReadOnly() {
