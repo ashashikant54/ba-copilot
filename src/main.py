@@ -85,7 +85,7 @@ from document_registry import (
 )
 from retriever import load_and_index_document
 
-app = FastAPI(title="BA Copilot — Phase 1")
+app = FastAPI(title="CoAnalytica — Phase 1")
 
 # REMOVED: os.makedirs("uploads", exist_ok=True)
 # We no longer need the uploads folder — files are handled in memory
@@ -552,6 +552,132 @@ def api_remove_document(doc_id: str):
     if not result["success"]:
         raise HTTPException(404, result["message"])
     return result
+
+
+
+# ══════════════════════════════════════════════════════════════
+# MEETINGS — Feature #4
+# ══════════════════════════════════════════════════════════════
+from meeting_module import (
+    process_meeting,
+    store_meeting_to_kb,
+    load_meeting,
+    list_meetings
+)
+
+class ProcessMeetingRequest(BaseModel):
+    title:       str
+    system_name: Optional[str] = None
+
+class StoreMeetingRequest(BaseModel):
+    system_name: str
+    source_type: str
+
+
+@app.post("/meetings/process")
+async def api_process_meeting(
+    file:        UploadFile = File(...),
+    title:       str        = Form(...),
+    system_name: str        = Form("")
+):
+    """
+    Upload + process a meeting recording.
+    Accepts: .txt, .vtt, .docx (transcripts) or .mp4 (audio → Whisper)
+    Returns: meeting record with summary, decisions, action items, open questions.
+    """
+    allowed = [".txt", ".vtt", ".docx", ".mp4"]
+    ext = os.path.splitext(file.filename)[1].lower()
+    if ext not in allowed:
+        raise HTTPException(400, f"File type '{ext}' not supported. Use: {allowed}")
+
+    if not title.strip():
+        raise HTTPException(400, "Meeting title is required")
+
+    # Read file into memory (same pattern as /upload endpoint)
+    file_bytes   = await file.read()
+    file_size_kb = round(len(file_bytes) / 1024, 1)
+
+    tmp = tempfile.NamedTemporaryFile(delete=False, suffix=ext)
+    try:
+        tmp.write(file_bytes)
+        tmp.flush()
+        tmp.close()
+
+        meeting = process_meeting(
+            title=title.strip(),
+            system_name=system_name.strip() if system_name else "",
+            file_path=tmp.name,
+            filename=file.filename,
+            file_size_kb=file_size_kb
+        )
+
+        return {
+            "success": True,
+            "meeting": meeting
+        }
+
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    except Exception as e:
+        raise HTTPException(500, str(e))
+    finally:
+        if os.path.exists(tmp.name):
+            os.remove(tmp.name)
+
+
+@app.get("/meetings")
+def api_list_meetings():
+    """Return all meeting records, newest first."""
+    try:
+        return list_meetings()
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+
+@app.get("/meetings/{meeting_id}")
+def api_get_meeting(meeting_id: str):
+    """Return a single meeting record by ID."""
+    try:
+        return load_meeting(meeting_id)
+    except FileNotFoundError:
+        raise HTTPException(404, f"Meeting '{meeting_id}' not found")
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+
+@app.post("/meetings/{meeting_id}/store")
+def api_store_meeting_to_kb(meeting_id: str, req: StoreMeetingRequest):
+    """
+    Human-approved step: index meeting transcript into the Knowledge Base.
+    This makes the meeting content searchable in future analysis sessions.
+    """
+    if not req.system_name.strip():
+        raise HTTPException(400, "system_name is required")
+    if not req.source_type.strip():
+        raise HTTPException(400, "source_type is required")
+
+    # Validate system + source exist
+    systems = get_all_systems()
+    if req.system_name not in systems:
+        raise HTTPException(400, f"System '{req.system_name}' not found")
+    if req.source_type not in systems[req.system_name]:
+        raise HTTPException(400, f"Source '{req.source_type}' not found in '{req.system_name}'")
+
+    try:
+        meeting = store_meeting_to_kb(
+            meeting_id=meeting_id,
+            system_name=req.system_name.strip(),
+            source_type=req.source_type.strip()
+        )
+        return {
+            "success": True,
+            "message": f"✅ Meeting indexed into '{req.system_name} → {req.source_type}'",
+            "meeting": meeting
+        }
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    except Exception as e:
+        raise HTTPException(500, str(e))
 
 
 # ── Health (UNCHANGED) ─────────────────────────────────────────
