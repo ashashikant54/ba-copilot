@@ -219,7 +219,7 @@ label{display:block;font-size:11px;color:var(--ink3);font-weight:600;margin-bott
   <div class="logo-icon">C</div>
   <div>
     <div class="logo-text">CoAnalytica</div>
-    <div class="logo-sub">AI-Powered Enterprise Analysis Platform</div>
+    <div class="logo-sub">Enterprise AI Platform</div>
   </div>
   <span class="badge">Phase 1</span>
 </header>
@@ -620,6 +620,7 @@ let currentStage     = 1;
 let systems          = {};
 let selectedFile     = null;
 let currentRequirements = [];
+let isReadOnly       = false;
 
 // ── Init ────────────────────────────────────────────────────────
 window.onload = async () => {
@@ -1631,6 +1632,338 @@ async function editFromStage(stageNum) {
   goToStage(stageNum);
   showStatus(`s${stageNum}Status`, 'ok', `✅ Reverted to Stage ${stageNum} — make your edits and continue`);
 }
+
+// ═══════════════════════════════════════════════════════════════
+// MEETINGS TAB — Feature #4 (wired to real API)
+// ═══════════════════════════════════════════════════════════════
+let selectedMeetingFile = null;
+let currentMeetingId    = null;
+
+// ── File handling ──────────────────────────────────────────────
+function handleMeetingFileSelect(input) {
+  if(input.files[0]) setMeetingFile(input.files[0]);
+}
+function handleMeetingDrop(e) {
+  e.preventDefault();
+  document.getElementById('meetingUploadZone').classList.remove('drag');
+  if(e.dataTransfer.files[0]) setMeetingFile(e.dataTransfer.files[0]);
+}
+function setMeetingFile(file) {
+  selectedMeetingFile = file;
+  document.getElementById('meetingFileName').textContent =
+    `📄 ${file.name} (${(file.size/1024).toFixed(1)} KB)`;
+  document.getElementById('meetingUploadZone').style.borderColor = 'var(--blue)';
+}
+
+// ── Dropdown population ────────────────────────────────────────
+function populateMeetingDropdowns() {
+  const keys = Object.keys(systems);
+  ['meetingSystem','meetingStoreSystem'].forEach(id => {
+    const el = document.getElementById(id);
+    if(!el) return;
+    const prev = el.value;
+    el.innerHTML = '<option value="">— Select System —</option>';
+    keys.forEach(k => el.innerHTML += `<option value="${k}">${k}</option>`);
+    if(prev) el.value = prev;
+  });
+}
+
+function loadMeetingStoreSources() {
+  const sys = document.getElementById('meetingStoreSystem').value;
+  const src = document.getElementById('meetingStoreSource');
+  src.innerHTML = '<option value="">— Select Source —</option>';
+  if(sys && systems[sys])
+    systems[sys].forEach(s => src.innerHTML += `<option>${s}</option>`);
+}
+
+// ── Pipeline renderer ──────────────────────────────────────────
+function renderMeetingPipeline(steps) {
+  const pipe = document.getElementById('meetingPipeline');
+  pipe.innerHTML = steps.map(s => `
+    <div style="display:flex;gap:10px;align-items:center;padding:9px 11px;border-radius:8px;margin-bottom:4px;
+      background:${s.status==='active'?'var(--blue-lt)':s.status==='done'?'var(--green-lt)':'transparent'};
+      border:1px solid ${s.status==='active'?'var(--blue-mid)':s.status==='done'?'var(--green-mid)':'var(--border)'};">
+      <div style="width:26px;height:26px;border-radius:7px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;
+        background:${s.status==='done'?'var(--green-lt)':s.status==='active'?'var(--blue)':'var(--bg2)'};
+        border:1.5px solid ${s.status==='done'?'var(--green-mid)':s.status==='active'?'var(--blue)':'var(--border)'};
+        color:${s.status==='done'?'var(--green)':s.status==='active'?'#fff':'var(--ink5)'};">
+        ${s.status==='done'?'✓':s.status==='active'?'<span class="spin" style="margin:0;border-top-color:#fff;border-color:rgba(255,255,255,.3)"></span>':s.n}
+      </div>
+      <span style="font-size:13px;flex:1;color:${s.status==='done'?'var(--ink4)':s.status==='active'?'var(--blue)':'var(--ink5)'};font-weight:${s.status==='active'?'600':'400'};">
+        ${s.label}
+      </span>
+      ${s.time?`<span style="font-size:10px;color:${s.status==='done'?'var(--green)':'var(--ink5)'};font-family:var(--mono);font-weight:600;">${s.time}</span>`:''}
+    </div>`).join('');
+}
+
+const PIPELINE_STEPS_TXT  = ['Read & validate file','Extract text content','AI analysis (GPT-4o-mini)','Parse structured output','Save to Azure Blob','Ready for review'];
+const PIPELINE_STEPS_MP4  = ['Read & validate file','Send audio → Azure Speech API','Receive transcript','AI analysis (GPT-4o-mini)','Parse structured output','Save to Azure Blob','Ready for review'];
+
+function getPipelineSteps(filename) {
+  const ext = filename.split('.').pop().toLowerCase();
+  return ext === 'mp4' ? PIPELINE_STEPS_MP4 : PIPELINE_STEPS_TXT;
+}
+
+function setPipelineActive(steps, activeIdx) {
+  return steps.map((label, i) => ({
+    n: i+1, label,
+    status: i < activeIdx ? 'done' : i === activeIdx ? 'active' : 'pending',
+    time: i < activeIdx ? '✓' : ''
+  }));
+}
+
+// ── Main process function ──────────────────────────────────────
+async function processMeeting() {
+  const title = document.getElementById('meetingTitle').value.trim();
+  const sys   = document.getElementById('meetingSystem').value;
+
+  if(!title)               return showStatus('meetingStatus','err','Enter a meeting title');
+  if(!selectedMeetingFile) return showStatus('meetingStatus','err','Select a file to process');
+
+  const btn = document.getElementById('processMeetingBtn');
+  btn.disabled    = true;
+  btn.textContent = 'Processing...';
+  document.getElementById('meetingResults').style.display = 'none';
+  currentMeetingId = null;
+
+  const steps  = getPipelineSteps(selectedMeetingFile.name);
+  const ext    = selectedMeetingFile.name.split('.').pop().toLowerCase();
+
+  // Step 0 — show initial pipeline
+  renderMeetingPipeline(setPipelineActive(steps, 0));
+  showStatus('meetingStatus','load',`<span class="spin"></span> Reading file...`);
+
+  // Small delay for UX — shows step 0 active before fetch starts
+  await new Promise(r => setTimeout(r, 300));
+
+  // Step 1 — for MP4 show whisper step is active
+  if(ext === 'mp4') {
+    renderMeetingPipeline(setPipelineActive(steps, 1));
+    showStatus('meetingStatus','load','<span class="spin"></span> Sending audio to Whisper API — this may take 30–60s for long recordings...');
+    await new Promise(r => setTimeout(r, 400));
+  }
+
+  // Build form data
+  const form = new FormData();
+  form.append('file', selectedMeetingFile);
+  form.append('title', title);
+  form.append('system_name', sys || '');
+
+  // Advance pipeline to AI step while fetching
+  const aiStep = ext === 'mp4' ? 3 : 2;
+  renderMeetingPipeline(setPipelineActive(steps, aiStep - 1));
+  showStatus('meetingStatus','load','<span class="spin"></span> Running AI analysis...');
+
+  try {
+    const res  = await fetch('/meetings/process', { method:'POST', body:form });
+    const data = await res.json();
+
+    if(!res.ok) {
+      showStatus('meetingStatus','err', `❌ ${data.detail || 'Processing failed'}`);
+      renderMeetingPipeline(setPipelineActive(steps, -1));
+      btn.disabled    = false;
+      btn.textContent = '🔍 Process Meeting';
+      return;
+    }
+
+    // Show all done
+    renderMeetingPipeline(steps.map((label, i) => ({
+      n: i+1, label, status:'done', time:'✓'
+    })));
+
+    const meeting    = data.meeting;
+    currentMeetingId = meeting.meeting_id;
+
+    // Render results
+    renderMeetingResults(meeting);
+    document.getElementById('meetingResults').style.display = 'block';
+    showStatus('meetingStatus','ok',`✅ Meeting processed — ${meeting.decisions.length} decisions · ${meeting.action_items.length} actions · ${meeting.open_questions.length} open questions`);
+
+    // Pre-populate KB store dropdowns if system was set
+    if(sys) {
+      document.getElementById('meetingStoreSystem').value = sys;
+      loadMeetingStoreSources();
+    }
+
+    // Reload list
+    await loadMeetings();
+
+  } catch(e) {
+    showStatus('meetingStatus','err','❌ Network error: ' + e.message);
+    renderMeetingPipeline(setPipelineActive(steps, -1));
+  }
+
+  btn.disabled    = false;
+  btn.textContent = '🔍 Process Meeting';
+}
+
+// ── Render meeting analysis results ───────────────────────────
+function renderMeetingResults(meeting) {
+
+  // Summary card
+  document.getElementById('meetingSummary').innerHTML = `
+    <div style="font-size:13px;color:var(--ink2);line-height:1.75;margin-bottom:14px;">${meeting.summary}</div>
+    ${meeting.key_topics?.length ? `
+      <div style="margin-top:10px;">
+        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--ink5);margin-bottom:6px;">Key Topics</div>
+        <div>${meeting.key_topics.map(t=>`<span class="story-tag" style="margin:2px">${t}</span>`).join('')}</div>
+      </div>` : ''}
+    ${meeting.participants?.length ? `
+      <div style="margin-top:10px;">
+        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--ink5);margin-bottom:6px;">Participants</div>
+        <div>${meeting.participants.map(p=>`<span class="pill" style="margin:2px;">👤 ${p}</span>`).join('')}</div>
+      </div>` : ''}
+    ${meeting.ba_insights ? `
+      <div style="margin-top:12px;background:var(--blue-lt);border:1px solid var(--blue-mid);border-radius:8px;padding:10px 13px;">
+        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--blue);margin-bottom:4px;">BA Insights</div>
+        <div style="font-size:12.5px;color:var(--ink2);">${meeting.ba_insights}</div>
+      </div>` : ''}
+  `;
+
+  // Decisions + Actions card
+  let decisionsHtml = '';
+  if(meeting.decisions?.length) {
+    decisionsHtml += `<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--ink5);margin-bottom:8px;">Decisions</div>`;
+    meeting.decisions.forEach((d,i) => {
+      decisionsHtml += `
+        <div style="background:var(--bg);border:1px solid var(--border);border-left:3px solid var(--blue);border-radius:7px;padding:10px 12px;margin-bottom:8px;">
+          <div style="font-size:13px;color:var(--ink1);font-weight:500;margin-bottom:4px;">${d.decision}</div>
+          <div style="font-size:11px;color:var(--ink5);">👤 ${d.owner} &nbsp;|&nbsp; ${d.context}</div>
+        </div>`;
+    });
+  }
+
+  if(meeting.action_items?.length) {
+    decisionsHtml += `<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--ink5);margin:14px 0 8px;">Action Items</div>`;
+    meeting.action_items.forEach(a => {
+      const priColor = a.priority==='High'?'var(--red)':a.priority==='Medium'?'var(--amber)':'var(--green)';
+      const priBg    = a.priority==='High'?'var(--red-lt)':a.priority==='Medium'?'var(--amber-lt)':'var(--green-lt)';
+      const priBd    = a.priority==='High'?'var(--red-mid)':a.priority==='Medium'?'var(--border)':'var(--green-mid)';
+      decisionsHtml += `
+        <div style="background:var(--bg);border:1px solid var(--border);border-radius:7px;padding:10px 12px;margin-bottom:8px;display:flex;gap:10px;align-items:flex-start;">
+          <span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:5px;background:${priBg};color:${priColor};border:1px solid ${priBd};flex-shrink:0;margin-top:2px;">${a.priority}</span>
+          <div style="flex:1;">
+            <div style="font-size:13px;color:var(--ink1);font-weight:500;">${a.action}</div>
+            <div style="font-size:11px;color:var(--ink5);margin-top:3px;">👤 ${a.owner} &nbsp;|&nbsp; 📅 ${a.due_date}</div>
+          </div>
+        </div>`;
+    });
+  }
+
+  if(!decisionsHtml) decisionsHtml = '<div class="empty-state">No decisions or actions extracted.</div>';
+  document.getElementById('meetingDecisions').innerHTML = decisionsHtml;
+
+  // Open questions card
+  let gapsHtml = '';
+  if(meeting.open_questions?.length) {
+    meeting.open_questions.forEach((q,i) => {
+      gapsHtml += `
+        <div style="background:var(--bg);border:1px solid var(--border);border-left:3px solid var(--amber);border-radius:7px;padding:10px 12px;margin-bottom:8px;">
+          <div style="font-size:13px;color:var(--ink1);font-weight:500;margin-bottom:4px;">${q.question}</div>
+          <div style="font-size:11px;color:var(--ink5);">Directed to: ${q.directed_to}</div>
+          ${q.impact ? `<div style="font-size:11px;color:var(--amber);margin-top:3px;">Impact: ${q.impact}</div>` : ''}
+        </div>`;
+    });
+  } else {
+    gapsHtml = '<div class="empty-state" style="color:var(--green);">✅ No open questions — meeting was comprehensive!</div>';
+  }
+  document.getElementById('meetingGaps').innerHTML = gapsHtml;
+}
+
+// ── Store to KB ────────────────────────────────────────────────
+async function storeMeetingToKb() {
+  if(!currentMeetingId) return showStatus('meetingStoreStatus','err','No processed meeting to store');
+  const sys = document.getElementById('meetingStoreSystem').value;
+  const src = document.getElementById('meetingStoreSource').value;
+  if(!sys)  return showStatus('meetingStoreStatus','err','Select a system');
+  if(!src)  return showStatus('meetingStoreStatus','err','Select a source');
+
+  showStatus('meetingStoreStatus','load','<span class="spin"></span> Indexing meeting transcript into Knowledge Base...');
+
+  try {
+    const res  = await fetch(`/meetings/${currentMeetingId}/store`, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({system_name: sys, source_type: src})
+    });
+    const data = await res.json();
+
+    if(res.ok) {
+      showStatus('meetingStoreStatus','ok', `✅ Stored in Knowledge Base — ${sys} → ${src}`);
+      // Update the store button to show it's done
+      document.querySelector('[onclick="storeMeetingToKb()"]').textContent = '✅ Stored in Knowledge Base';
+      document.querySelector('[onclick="storeMeetingToKb()"]').disabled = true;
+      await loadMeetings();
+    } else {
+      showStatus('meetingStoreStatus','err', data.detail || 'Store failed');
+    }
+  } catch(e) {
+    showStatus('meetingStoreStatus','err','Network error: ' + e.message);
+  }
+}
+
+// ── Load past meetings list ────────────────────────────────────
+async function loadMeetings() {
+  const el = document.getElementById('meetingsList');
+  if(!el) return;
+
+  try {
+    const res  = await fetch('/meetings');
+    const data = await res.json();
+
+    if(!data.length) {
+      el.innerHTML = '<div class="empty-state">No meeting recordings processed yet. Upload one above.</div>';
+      return;
+    }
+
+    el.innerHTML = data.map(m => `
+      <div class="session-card" onclick="viewMeeting('${m.meeting_id}')">
+        <div class="session-meta">
+          <span style="font-size:11px;font-weight:700;color:var(--blue);background:var(--blue-lt);border:1px solid var(--blue-mid);padding:2px 8px;border-radius:5px;font-family:var(--mono)">
+            ${m.file_type.toUpperCase()}
+          </span>
+          ${m.kb_stored ? `<span style="font-size:11px;color:var(--green);background:var(--green-lt);border:1px solid var(--green-mid);padding:2px 8px;border-radius:5px;font-weight:600;">✅ In KB</span>` : ''}
+          ${m.system_name ? `<span style="font-size:11px;color:var(--ink4);">🏢 ${m.system_name}</span>` : ''}
+          <span style="font-size:11px;color:var(--ink5);margin-left:auto;">${m.created_at}</span>
+          <span style="font-size:10px;color:var(--ink5);font-family:var(--mono);">ID: ${m.meeting_id}</span>
+        </div>
+        <div style="font-size:13.5px;font-weight:600;color:var(--ink1);margin-bottom:4px;">${m.title}</div>
+        <div class="session-problem">${m.summary_preview}</div>
+      </div>`).join('');
+
+  } catch(e) {
+    el.innerHTML = '<div class="empty-state">Error loading meetings: ' + e.message + '</div>';
+  }
+}
+
+async function viewMeeting(meetingId) {
+  try {
+    const res     = await fetch(`/meetings/${meetingId}`);
+    const meeting = await res.json();
+    currentMeetingId = meetingId;
+    renderMeetingResults(meeting);
+    document.getElementById('meetingResults').style.display = 'block';
+
+    // Pre-populate KB dropdowns if already stored
+    if(meeting.kb_stored) {
+      document.getElementById('meetingStoreSystem').value = meeting.kb_system_name || '';
+      loadMeetingStoreSources();
+      showStatus('meetingStoreStatus','ok', `✅ Already stored: ${meeting.kb_system_name} → ${meeting.kb_source_type}`);
+      const storeBtn = document.querySelector('[onclick="storeMeetingToKb()"]');
+      if(storeBtn) { storeBtn.textContent = '✅ Already in Knowledge Base'; storeBtn.disabled = true; }
+    } else {
+      const storeBtn = document.querySelector('[onclick="storeMeetingToKb()"]');
+      if(storeBtn) { storeBtn.textContent = '💾 Approve & Store in Knowledge Base'; storeBtn.disabled = false; }
+      showStatus('meetingStoreStatus','','');
+    }
+
+    // Scroll up to see results
+    document.getElementById('meetingResults').scrollIntoView({behavior:'smooth', block:'start'});
+  } catch(e) {
+    alert('Error loading meeting: ' + e.message);
+  }
+}
+
 </script>
 
 
@@ -1716,7 +2049,7 @@ async function editFromStage(stageNum) {
         <div class="card-title">💾 Store in Knowledge Base</div>
         <div class="field">
           <label>Target System</label>
-          <select id="meetingStoreSystem">
+          <select id="meetingStoreSystem" onchange="loadMeetingStoreSources()">
             <option value="">— Select System —</option>
           </select>
         </div>
