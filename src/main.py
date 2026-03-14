@@ -1,26 +1,6 @@
 # main.py
-# BA Copilot — Phase 1 FastAPI Server
-# UPDATED FOR AZURE CLOUD DEPLOYMENT
-#
-# WHAT CHANGED FROM THE ORIGINAL:
-#   1. Removed:  import shutil           (no longer saving files to disk)
-#   2. Added:    import tempfile         (built-in Python — creates a safe temp file)
-#   3. Removed:  os.makedirs("uploads")  (no longer need the uploads folder)
-#   4. Updated:  /upload endpoint        (reads file into memory instead of saving to disk)
-#
-# EVERYTHING ELSE IS 100% UNCHANGED
-#
-# WHY WE CHANGED THE UPLOAD ENDPOINT:
-#   OLD: file arrives → saved to "uploads/file.pdf" on disk → read from disk → index
-#   NEW: file arrives → read into memory as bytes → write to temp file → index → auto-delete
-#
-#   The key difference: temp files are automatically deleted after use.
-#   Azure's disk is ephemeral anyway, so we never rely on it for storage.
-#
-# TABS:
-#   Tab 1: Analyse      — 8-stage workflow
-#   Tab 2: Knowledge Base — Systems + Upload + Documents
-#   Tab 3: Sessions     — Resume past sessions
+# CoAnalytica — Phase 1 FastAPI Server
+# Updated: Feature #5 Observability Dashboard added
 #
 # API GROUPS:
 #   /sessions/*         — workflow session management
@@ -28,26 +8,24 @@
 #   /systems/*          — system and source management
 #   /upload             — document upload
 #   /documents/*        — document registry
+#   /meetings/*         — meeting processing (Feature #4)
+#   /admin/*            — observability dashboard (Feature #5)
 #   /health             — health check
-
+ 
 import os
 import sys
-import tempfile                  # NEW: built-in Python library, no install needed
-                                 # Creates a temporary file that auto-deletes when done
-                                 # REMOVED: import shutil (no longer needed)
+import tempfile
 from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Body
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, Response
 from pydantic import BaseModel
 from typing import Optional
-
-# NEW: Load environment variables from .env file on your laptop
-# On Azure, these are set in App Service → Configuration → App Settings
+ 
 from dotenv import load_dotenv
 load_dotenv()
-
+ 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-
+ 
 from session_manager import (
     create_session, load_session, list_sessions,
     delete_session, get_session_summary, revert_session
@@ -84,58 +62,55 @@ from document_registry import (
     get_all_documents, delete_document
 )
 from retriever import load_and_index_document
-
+ 
 app = FastAPI(title="CoAnalytica — Phase 1")
-
-# REMOVED: os.makedirs("uploads", exist_ok=True)
-# We no longer need the uploads folder — files are handled in memory
-
+ 
 app.mount("/static", StaticFiles(directory="static"), name="static")
-
-
-# ── Request Models (UNCHANGED) ─────────────────────────────────
+ 
+ 
+# ── Request Models ─────────────────────────────────────────────
 class CreateSessionRequest(BaseModel):
     problem:     str
     system_name: Optional[str] = None
     source_type: Optional[str] = None
-
+ 
 class AnswersRequest(BaseModel):
     answers: dict
-
+ 
 class ApproveProblemRequest(BaseModel):
     approved:    bool = True
     manual_edit: Optional[str] = None
-
+ 
 class FeedbackRequest(BaseModel):
     feedback: str
-
+ 
 class RequirementUpdateRequest(BaseModel):
     req_id:      str
     status:      str
     edited_text: Optional[str] = ""
-
+ 
 class BulkRequirementsRequest(BaseModel):
     updates: list
-
+ 
 class GapAnswersRequest(BaseModel):
     answers: dict
-
+ 
 class SystemRequest(BaseModel):
     system_name: str
-
+ 
 class SourceRequest(BaseModel):
     system_name: str
     source_type: str
-
-
-# ── Pages (UNCHANGED) ──────────────────────────────────────────
+ 
+ 
+# ── Pages ──────────────────────────────────────────────────────
 @app.get("/")
 def serve_home():
     return FileResponse("static/index.html")
-
-
+ 
+ 
 # ══════════════════════════════════════════════════════════════
-# SESSION MANAGEMENT (UNCHANGED)
+# SESSION MANAGEMENT
 # ══════════════════════════════════════════════════════════════
 @app.post("/sessions/create")
 def api_create_session(req: CreateSessionRequest):
@@ -149,33 +124,33 @@ def api_create_session(req: CreateSessionRequest):
         source_type=req.source_type
     )
     return session
-
-
+ 
+ 
 @app.get("/sessions")
 def api_list_sessions():
     return list_sessions()
-
-
+ 
+ 
 @app.get("/sessions/{session_id}")
 def api_get_session(session_id: str):
     try:
         return load_session(session_id)
     except FileNotFoundError:
         raise HTTPException(404, f"Session '{session_id}' not found")
-
-
+ 
+ 
 @app.get("/sessions/{session_id}/summary")
 def api_get_session_summary(session_id: str):
     try:
         return get_session_summary(session_id)
     except FileNotFoundError:
         raise HTTPException(404, f"Session '{session_id}' not found")
-
-
+ 
+ 
 @app.delete("/sessions/{session_id}")
 def api_delete_session(session_id: str):
     return delete_session(session_id)
-
+ 
 @app.post("/sessions/{session_id}/revert")
 async def api_revert_session(session_id: str, body: dict = Body(...)):
     target_stage = body.get("target_stage")
@@ -186,10 +161,10 @@ async def api_revert_session(session_id: str, body: dict = Body(...)):
         return {"message": f"Session reverted to stage {target_stage}"}
     except Exception as e:
         raise HTTPException(500, str(e))
-
-
+ 
+ 
 # ══════════════════════════════════════════════════════════════
-# STAGE 2 — CLARIFICATION (UNCHANGED)
+# STAGE 2 — CLARIFICATION
 # ══════════════════════════════════════════════════════════════
 @app.post("/sessions/{session_id}/clarify/questions")
 def api_generate_questions(session_id: str):
@@ -198,8 +173,8 @@ def api_generate_questions(session_id: str):
         return {"questions": questions}
     except Exception as e:
         raise HTTPException(500, str(e))
-
-
+ 
+ 
 @app.post("/sessions/{session_id}/clarify/answers")
 def api_save_answers(session_id: str, req: AnswersRequest):
     try:
@@ -207,8 +182,8 @@ def api_save_answers(session_id: str, req: AnswersRequest):
         return {"success": True}
     except Exception as e:
         raise HTTPException(500, str(e))
-
-
+ 
+ 
 @app.post("/sessions/{session_id}/clarify/refine")
 def api_refine_problem(session_id: str):
     try:
@@ -216,8 +191,8 @@ def api_refine_problem(session_id: str):
         return {"problem_refined": refined}
     except Exception as e:
         raise HTTPException(500, str(e))
-
-
+ 
+ 
 @app.post("/sessions/{session_id}/clarify/approve")
 def api_approve_problem(session_id: str, req: ApproveProblemRequest):
     try:
@@ -229,10 +204,10 @@ def api_approve_problem(session_id: str, req: ApproveProblemRequest):
         return session
     except Exception as e:
         raise HTTPException(500, str(e))
-
-
+ 
+ 
 # ══════════════════════════════════════════════════════════════
-# STAGE 3 — ANALYSIS (UNCHANGED)
+# STAGE 3 — ANALYSIS
 # ══════════════════════════════════════════════════════════════
 @app.post("/sessions/{session_id}/analyse")
 def api_run_analysis(session_id: str):
@@ -241,8 +216,8 @@ def api_run_analysis(session_id: str):
         return analysis
     except Exception as e:
         raise HTTPException(500, str(e))
-
-
+ 
+ 
 @app.post("/sessions/{session_id}/analyse/graph")
 def api_generate_graph(session_id: str):
     try:
@@ -250,8 +225,8 @@ def api_generate_graph(session_id: str):
         return {"graph": graph}
     except Exception as e:
         raise HTTPException(500, str(e))
-
-
+ 
+ 
 @app.post("/sessions/{session_id}/analyse/approve")
 def api_approve_analysis(session_id: str):
     try:
@@ -259,10 +234,10 @@ def api_approve_analysis(session_id: str):
         return {"success": True}
     except Exception as e:
         raise HTTPException(500, str(e))
-
-
+ 
+ 
 # ══════════════════════════════════════════════════════════════
-# STAGE 4 — GAP FILLING (UNCHANGED)
+# STAGE 4 — GAP FILLING
 # ══════════════════════════════════════════════════════════════
 @app.post("/sessions/{session_id}/gaps/questions")
 def api_generate_gaps(session_id: str):
@@ -271,8 +246,8 @@ def api_generate_gaps(session_id: str):
         return {"questions": questions}
     except Exception as e:
         raise HTTPException(500, str(e))
-
-
+ 
+ 
 @app.post("/sessions/{session_id}/gaps/answers")
 def api_save_gap_answers(session_id: str, req: GapAnswersRequest):
     try:
@@ -280,8 +255,8 @@ def api_save_gap_answers(session_id: str, req: GapAnswersRequest):
         return {"success": True}
     except Exception as e:
         raise HTTPException(500, str(e))
-
-
+ 
+ 
 @app.post("/sessions/{session_id}/gaps/assess")
 def api_assess_clarity(session_id: str):
     try:
@@ -289,8 +264,8 @@ def api_assess_clarity(session_id: str):
         return assessment
     except Exception as e:
         raise HTTPException(500, str(e))
-
-
+ 
+ 
 @app.post("/sessions/{session_id}/gaps/confirm")
 def api_confirm_gaps(session_id: str):
     try:
@@ -298,10 +273,10 @@ def api_confirm_gaps(session_id: str):
         return {"success": True}
     except Exception as e:
         raise HTTPException(500, str(e))
-
-
+ 
+ 
 # ══════════════════════════════════════════════════════════════
-# STAGE 5 — REQUIREMENTS REVIEW (UNCHANGED)
+# STAGE 5 — REQUIREMENTS REVIEW
 # ══════════════════════════════════════════════════════════════
 @app.post("/sessions/{session_id}/requirements/extract")
 def api_extract_requirements(session_id: str):
@@ -310,8 +285,8 @@ def api_extract_requirements(session_id: str):
         return {"requirements": requirements}
     except Exception as e:
         raise HTTPException(500, str(e))
-
-
+ 
+ 
 @app.put("/sessions/{session_id}/requirements/update")
 def api_update_requirement(session_id: str, req: RequirementUpdateRequest):
     try:
@@ -321,8 +296,8 @@ def api_update_requirement(session_id: str, req: RequirementUpdateRequest):
         return {"success": True}
     except Exception as e:
         raise HTTPException(500, str(e))
-
-
+ 
+ 
 @app.put("/sessions/{session_id}/requirements/bulk")
 def api_bulk_update(session_id: str, req: BulkRequirementsRequest):
     try:
@@ -330,13 +305,13 @@ def api_bulk_update(session_id: str, req: BulkRequirementsRequest):
         return {"success": True}
     except Exception as e:
         raise HTTPException(500, str(e))
-
-
+ 
+ 
 @app.get("/sessions/{session_id}/requirements/summary")
 def api_requirements_summary(session_id: str):
     return get_requirements_summary(session_id)
-
-
+ 
+ 
 @app.post("/sessions/{session_id}/requirements/advance")
 def api_advance_to_brd(session_id: str):
     try:
@@ -346,10 +321,10 @@ def api_advance_to_brd(session_id: str):
         raise HTTPException(400, str(e))
     except Exception as e:
         raise HTTPException(500, str(e))
-
-
+ 
+ 
 # ══════════════════════════════════════════════════════════════
-# STAGE 6 — BRD PREVIEW (UNCHANGED)
+# STAGE 6 — BRD PREVIEW
 # ══════════════════════════════════════════════════════════════
 @app.post("/sessions/{session_id}/brd/generate")
 def api_generate_brd(session_id: str):
@@ -358,8 +333,8 @@ def api_generate_brd(session_id: str):
         return {"brd": brd}
     except Exception as e:
         raise HTTPException(500, str(e))
-
-
+ 
+ 
 @app.post("/sessions/{session_id}/brd/approve")
 def api_approve_brd(session_id: str):
     try:
@@ -367,8 +342,8 @@ def api_approve_brd(session_id: str):
         return {"success": True}
     except Exception as e:
         raise HTTPException(500, str(e))
-
-
+ 
+ 
 @app.post("/sessions/{session_id}/brd/regenerate")
 def api_regenerate_brd(session_id: str, req: FeedbackRequest):
     try:
@@ -376,10 +351,10 @@ def api_regenerate_brd(session_id: str, req: FeedbackRequest):
         return {"brd": brd}
     except Exception as e:
         raise HTTPException(500, str(e))
-
-
+ 
+ 
 # ══════════════════════════════════════════════════════════════
-# STAGE 7 — USER STORIES (UNCHANGED)
+# STAGE 7 — USER STORIES
 # ══════════════════════════════════════════════════════════════
 @app.post("/sessions/{session_id}/stories/generate")
 def api_generate_stories(session_id: str):
@@ -388,8 +363,8 @@ def api_generate_stories(session_id: str):
         return {"stories": stories}
     except Exception as e:
         raise HTTPException(500, str(e))
-
-
+ 
+ 
 @app.get("/sessions/{session_id}/stories/csv")
 def api_export_csv(session_id: str):
     try:
@@ -404,8 +379,8 @@ def api_export_csv(session_id: str):
         )
     except Exception as e:
         raise HTTPException(500, str(e))
-
-
+ 
+ 
 @app.post("/sessions/{session_id}/complete")
 def api_mark_complete(session_id: str):
     try:
@@ -413,42 +388,42 @@ def api_mark_complete(session_id: str):
         return {"success": True}
     except Exception as e:
         raise HTTPException(500, str(e))
-
-
+ 
+ 
 # ══════════════════════════════════════════════════════════════
-# KNOWLEDGE BASE — SYSTEMS (UNCHANGED)
+# KNOWLEDGE BASE — SYSTEMS
 # ══════════════════════════════════════════════════════════════
 @app.get("/systems")
 def api_get_systems():
     return get_all_systems()
-
-
+ 
+ 
 @app.post("/systems/add")
 def api_add_system(req: SystemRequest):
     result = add_system(req.system_name.strip())
     if not result["success"]:
         raise HTTPException(400, result["message"])
     return result
-
-
+ 
+ 
 @app.post("/systems/add-source")
 def api_add_source(req: SourceRequest):
     result = add_source(req.system_name.strip(), req.source_type.strip())
     if not result["success"]:
         raise HTTPException(400, result["message"])
     return result
-
-
+ 
+ 
 @app.delete("/systems/{system_name}")
 def api_delete_system(system_name: str):
     result = remove_system(system_name)
     if not result["success"]:
         raise HTTPException(404, result["message"])
     return result
-
-
+ 
+ 
 # ══════════════════════════════════════════════════════════════
-# KNOWLEDGE BASE — DOCUMENT UPLOAD  ← THIS IS THE ONLY CHANGED ENDPOINT
+# KNOWLEDGE BASE — DOCUMENT UPLOAD
 # ══════════════════════════════════════════════════════════════
 @app.post("/upload")
 async def api_upload_document(
@@ -461,53 +436,28 @@ async def api_upload_document(
     ext = os.path.splitext(file.filename)[1].lower()
     if ext not in allowed:
         raise HTTPException(400, f"File type '{ext}' not supported. Use: {allowed}")
-
+ 
     systems = get_all_systems()
     if system_name not in systems:
         raise HTTPException(400, f"System '{system_name}' not found")
     if source_type not in systems[system_name]:
         raise HTTPException(400, f"Source '{source_type}' not found in '{system_name}'")
-
-    # ── CHANGED SECTION ───────────────────────────────────────
-    # OLD CODE saved the file to disk permanently:
-    #   file_path = f"uploads/{file.filename}"
-    #   with open(file_path, "wb") as f:
-    #       shutil.copyfileobj(file.file, f)
-    #   file_size_kb = round(os.path.getsize(file_path) / 1024, 1)
-    #
-    # NEW CODE reads the file into memory first, then creates a
-    # temporary file that is automatically deleted when we're done.
-    #
-    # What is a temp file?
-    #   A temporary file is like a sticky note — it exists just long
-    #   enough for us to use it, then disappears automatically.
-    #   This is perfect for Azure where we can't rely on disk storage.
-
-    # Step 1: Read the uploaded file bytes into memory
-    file_bytes = await file.read()
-
-    # Step 2: Calculate file size from bytes (1024 bytes = 1 KB)
+ 
+    file_bytes   = await file.read()
     file_size_kb = round(len(file_bytes) / 1024, 1)
-
-    # Step 3: Create a temporary file with the correct extension
-    # delete=False means we control when it's deleted (we do it in finally block)
-    # suffix=ext means the temp file has the right extension e.g. ".pdf"
     tmp = tempfile.NamedTemporaryFile(delete=False, suffix=ext)
-
+ 
     try:
-        # Step 4: Write the bytes to the temp file so retriever can read it
         tmp.write(file_bytes)
-        tmp.flush()   # Make sure all bytes are written before we read
-        tmp.close()   # Close the file so retriever can open it
-
-        # Step 5: Index the document using temp file path (same as before)
+        tmp.flush()
+        tmp.close()
+ 
         chunks = load_and_index_document(
-            file_path=tmp.name,          # tmp.name = the temp file's path
+            file_path=tmp.name,
             system_name=system_name,
             source_type=source_type
         )
-
-        # Step 6: Register in Azure Blob Storage (via updated document_registry.py)
+ 
         record = register_document(
             document_name=file.filename,
             system_name=system_name,
@@ -515,46 +465,42 @@ async def api_upload_document(
             chunks=chunks,
             file_size_kb=file_size_kb
         )
-
+ 
         return {
             "success":  True,
             "message":  f"✅ Indexed {chunks} chunks from '{file.filename}'",
             "document": record
         }
-
+ 
     except Exception as e:
         raise HTTPException(500, str(e))
-
+ 
     finally:
-        # Step 7: Always delete the temp file when done, whether success or error
-        # This is the "auto-cleanup" — like throwing away that sticky note
         if os.path.exists(tmp.name):
             os.remove(tmp.name)
-    # ── END OF CHANGED SECTION ────────────────────────────────
-
-
+ 
+ 
 # ══════════════════════════════════════════════════════════════
-# KNOWLEDGE BASE — DOCUMENT REGISTRY (UNCHANGED)
+# KNOWLEDGE BASE — DOCUMENT REGISTRY
 # ══════════════════════════════════════════════════════════════
 @app.get("/documents")
 def api_get_documents():
     return get_registry_as_tree()
-
-
+ 
+ 
 @app.get("/documents/list")
 def api_list_documents():
     return get_all_documents()
-
-
+ 
+ 
 @app.delete("/documents/{doc_id}")
 def api_remove_document(doc_id: str):
     result = delete_document(doc_id)
     if not result["success"]:
         raise HTTPException(404, result["message"])
     return result
-
-
-
+ 
+ 
 # ══════════════════════════════════════════════════════════════
 # MEETINGS — Feature #4
 # ══════════════════════════════════════════════════════════════
@@ -564,45 +510,39 @@ from meeting_module import (
     load_meeting,
     list_meetings
 )
-
+ 
 class ProcessMeetingRequest(BaseModel):
     title:       str
     system_name: Optional[str] = None
-
+ 
 class StoreMeetingRequest(BaseModel):
     system_name: str
     source_type: str
-
-
+ 
+ 
 @app.post("/meetings/process")
 async def api_process_meeting(
     file:        UploadFile = File(...),
     title:       str        = Form(...),
     system_name: str        = Form("")
 ):
-    """
-    Upload + process a meeting recording.
-    Accepts: .txt, .vtt, .docx (transcripts) or .mp4 (audio → Whisper)
-    Returns: meeting record with summary, decisions, action items, open questions.
-    """
     allowed = [".txt", ".vtt", ".docx", ".mp4"]
     ext = os.path.splitext(file.filename)[1].lower()
     if ext not in allowed:
         raise HTTPException(400, f"File type '{ext}' not supported. Use: {allowed}")
-
+ 
     if not title.strip():
         raise HTTPException(400, "Meeting title is required")
-
-    # Read file into memory (same pattern as /upload endpoint)
+ 
     file_bytes   = await file.read()
     file_size_kb = round(len(file_bytes) / 1024, 1)
-
+ 
     tmp = tempfile.NamedTemporaryFile(delete=False, suffix=ext)
     try:
         tmp.write(file_bytes)
         tmp.flush()
         tmp.close()
-
+ 
         meeting = process_meeting(
             title=title.strip(),
             system_name=system_name.strip() if system_name else "",
@@ -610,12 +550,9 @@ async def api_process_meeting(
             filename=file.filename,
             file_size_kb=file_size_kb
         )
-
-        return {
-            "success": True,
-            "meeting": meeting
-        }
-
+ 
+        return {"success": True, "meeting": meeting}
+ 
     except ValueError as e:
         raise HTTPException(400, str(e))
     except Exception as e:
@@ -623,46 +560,39 @@ async def api_process_meeting(
     finally:
         if os.path.exists(tmp.name):
             os.remove(tmp.name)
-
-
+ 
+ 
 @app.get("/meetings")
 def api_list_meetings():
-    """Return all meeting records, newest first."""
     try:
         return list_meetings()
     except Exception as e:
         raise HTTPException(500, str(e))
-
-
+ 
+ 
 @app.get("/meetings/{meeting_id}")
 def api_get_meeting(meeting_id: str):
-    """Return a single meeting record by ID."""
     try:
         return load_meeting(meeting_id)
     except FileNotFoundError:
         raise HTTPException(404, f"Meeting '{meeting_id}' not found")
     except Exception as e:
         raise HTTPException(500, str(e))
-
-
+ 
+ 
 @app.post("/meetings/{meeting_id}/store")
 def api_store_meeting_to_kb(meeting_id: str, req: StoreMeetingRequest):
-    """
-    Human-approved step: index meeting transcript into the Knowledge Base.
-    This makes the meeting content searchable in future analysis sessions.
-    """
     if not req.system_name.strip():
         raise HTTPException(400, "system_name is required")
     if not req.source_type.strip():
         raise HTTPException(400, "source_type is required")
-
-    # Validate system + source exist
+ 
     systems = get_all_systems()
     if req.system_name not in systems:
         raise HTTPException(400, f"System '{req.system_name}' not found")
     if req.source_type not in systems[req.system_name]:
         raise HTTPException(400, f"Source '{req.source_type}' not found in '{req.system_name}'")
-
+ 
     try:
         meeting = store_meeting_to_kb(
             meeting_id=meeting_id,
@@ -678,9 +608,66 @@ def api_store_meeting_to_kb(meeting_id: str, req: StoreMeetingRequest):
         raise HTTPException(400, str(e))
     except Exception as e:
         raise HTTPException(500, str(e))
-
-
-# ── Health (UNCHANGED) ─────────────────────────────────────────
+ 
+ 
+# ══════════════════════════════════════════════════════════════
+# ADMIN — Feature #5: Observability Dashboard
+# ══════════════════════════════════════════════════════════════
+from observability import (
+    get_platform_overview,
+    get_cost_by_stage,
+    get_session_cost_table,
+    get_kb_breakdown,
+    get_prompt_versions,
+)
+ 
+ 
+@app.get("/admin/overview")
+def api_admin_overview():
+    """High-level platform stats: session/meeting counts, KB size, cumulative cost."""
+    try:
+        return get_platform_overview()
+    except Exception as e:
+        raise HTTPException(500, str(e))
+ 
+ 
+@app.get("/admin/costs/by-stage")
+def api_admin_costs_by_stage():
+    """Token usage + cost broken down by pipeline stage, aggregated across all sessions."""
+    try:
+        return get_cost_by_stage()
+    except Exception as e:
+        raise HTTPException(500, str(e))
+ 
+ 
+@app.get("/admin/costs/by-session")
+def api_admin_costs_by_session():
+    """Per-session cost table, sorted by total cost descending."""
+    try:
+        return get_session_cost_table()
+    except Exception as e:
+        raise HTTPException(500, str(e))
+ 
+ 
+@app.get("/admin/kb/breakdown")
+def api_admin_kb_breakdown():
+    """KB stats broken down by System → Source → doc count, chunk count, size."""
+    try:
+        return get_kb_breakdown()
+    except Exception as e:
+        raise HTTPException(500, str(e))
+ 
+ 
+@app.get("/admin/prompts/versions")
+def api_admin_prompt_versions():
+    """Which prompt versions are in use across recent sessions + meetings."""
+    try:
+        return get_prompt_versions()
+    except Exception as e:
+        raise HTTPException(500, str(e))
+ 
+ 
+# ── Health ─────────────────────────────────────────────────────
 @app.get("/health")
 def health():
-    return {"status": "BA Copilot Phase 1 running ✅"}
+    return {"status": "CoAnalytica Phase 1 running ✅"}

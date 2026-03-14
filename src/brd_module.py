@@ -12,12 +12,18 @@
 #   New: Generates BRD from BA-approved requirements only
 #        Every section traces to a specific REQ-xxx number
 #        Zero hallucination — nothing enters BRD unless BA approved it
-
+#
+# PROMPTS:
+#   All prompt text lives in prompts.json — never hardcoded here.
+#   BRD_PROMPT → prompts.json: stages.brd
+#   Edit prompts without touching this file.
+ 
 import os
 import sys
 from dotenv import load_dotenv
 from openai import OpenAI
-
+from prompt_manager import get_prompt, get_model_config, estimate_cost, get_prompt_version
+ 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from retriever import (
     get_relevant_context,
@@ -28,87 +34,11 @@ from session_manager import (
     load_session, update_session,
     STAGE_BRD_PREVIEW, STAGE_USER_STORIES
 )
-
+ 
 load_dotenv()
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-
-
-# ── Prompt: BRD Generation ─────────────────────────────────────
-BRD_PROMPT = """
-You are a senior Business Analyst writing a formal Business Requirements Document.
-
-CRITICAL RULES:
-- Use ONLY the approved requirements provided — nothing else
-- Every BRD section must reference requirement IDs (REQ-001 etc.)
-- Do NOT add requirements not in the approved list
-- Mark assumptions clearly as [ASSUMPTION]
-- Write in professional formal language
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-PROJECT CONTEXT
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Problem Statement:
-{problem}
-
-Impacted Systems: {systems}
-Impacted Stakeholders: {stakeholders}
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-APPROVED REQUIREMENTS (use ONLY these):
-{requirements}
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-KNOWLEDGE BASE CONTEXT:
-{kb_context}
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Write the BRD using this EXACT structure:
-
-# Business Requirements Document
-
-## 1. EXECUTIVE SUMMARY
-(2-3 sentences — what, why, and expected outcome)
-
-## 2. BUSINESS PROBLEM
-(Refined problem statement with measurable pain points)
-
-## 3. BUSINESS GOALS
-(3-5 measurable goals derived from approved requirements)
-
-## 4. SCOPE
-### In Scope:
-(Systems and processes covered — from approved requirements)
-### Out of Scope:
-(Explicitly excluded items)
-
-## 5. STAKEHOLDERS
-| Role | Team | Involvement | Impact |
-|------|------|-------------|--------|
-
-## 6. FUNCTIONAL REQUIREMENTS
-(List ONLY approved functional requirements with their REQ-xxx IDs)
-
-## 7. NON-FUNCTIONAL REQUIREMENTS
-(List ONLY approved non-functional requirements with their REQ-xxx IDs)
-
-## 8. INTEGRATION REQUIREMENTS
-(List ONLY approved integration requirements with their REQ-xxx IDs)
-
-## 9. ASSUMPTIONS & RISKS
-### Assumptions:
-### Risks:
-
-## 10. SUCCESS METRICS
-(How we will measure if the solution succeeded)
-
----
-## TRACEABILITY MATRIX
-| REQ ID | Requirement | Type | Source | Status |
-|--------|-------------|------|--------|--------|
-(List every approved requirement with its metadata)
-"""
-
-
+ 
+ 
 # ── Functions ──────────────────────────────────────────────────
 def generate_brd_preview(session_id):
     """
@@ -117,35 +47,31 @@ def generate_brd_preview(session_id):
     """
     session = load_session(session_id)
     problem = session.get("problem_refined") or session.get("problem_raw")
-
+ 
     # Get ONLY accepted and edited requirements
-    all_reqs  = session.get("requirements", [])
-    approved  = [
-        r for r in all_reqs
-        if r["status"] in ("accepted", "edited")
-    ]
-    rejected  = [r for r in all_reqs if r["status"] == "rejected"]
-
+    all_reqs = session.get("requirements", [])
+    approved = [r for r in all_reqs if r["status"] in ("accepted", "edited")]
+    rejected = [r for r in all_reqs if r["status"] == "rejected"]
+ 
     if not approved:
         raise ValueError(
             "No approved requirements found. "
             "Please accept at least one requirement in Stage 5."
         )
-
+ 
     print(f"\n📋 Building BRD from {len(approved)} approved requirements "
           f"({len(rejected)} rejected)")
-
+ 
     # Format approved requirements for prompt
     req_text = ""
     for r in approved:
-        # Use edited text if BA modified it, otherwise original
         text = r["edited_text"] if r["edited_text"] else r["text"]
         req_text += (
             f"[{r['id']}] ({r['type']}) {text}\n"
             f"   Rationale: {r['rationale']}\n"
             f"   Source: {r['source']} | Confidence: {r['confidence']}\n\n"
         )
-
+ 
     # Format systems and stakeholders
     systems_text = ", ".join(
         s["name"] for s in session.get("impacted_systems", [])
@@ -155,7 +81,7 @@ def generate_brd_preview(session_id):
         f"{st['name']} ({st['team']})"
         for st in session.get("impacted_stakeholders", [])
     )
-
+ 
     # Get knowledge base context
     print(f"🔍 Getting knowledge base context...")
     results = get_relevant_context(
@@ -168,24 +94,24 @@ def generate_brd_preview(session_id):
     if results:
         ctx, _ = format_context_with_citations(results)
         kb_context = ctx
-
-    print(f"🧠 Generating BRD preview...")
-
+ 
+    # Load prompt config from prompts.json
+    prompt_cfg = get_prompt("stages", "brd")
+    model_cfg  = get_model_config("stages", "brd")
+    prompt_ver = get_prompt_version("stages", "brd")
+ 
+    print(f"🧠 Generating BRD preview ({model_cfg['model']}, prompt v{prompt_ver})...")
+ 
     response = client.chat.completions.create(
-        model="gpt-4o-mini",
+        model=model_cfg["model"],
         messages=[
             {
                 "role": "system",
-                "content": (
-                    "You are a senior Business Analyst writing a formal BRD. "
-                    "Use ONLY the approved requirements provided. "
-                    "Reference REQ-xxx IDs throughout the document. "
-                    "Never add requirements not in the approved list."
-                )
+                "content": prompt_cfg["system"]
             },
             {
                 "role": "user",
-                "content": BRD_PROMPT.format(
+                "content": prompt_cfg["user_template"].format(
                     problem=problem,
                     systems=systems_text or "TBC",
                     stakeholders=stakeholders_text or "TBC",
@@ -194,27 +120,38 @@ def generate_brd_preview(session_id):
                 )
             }
         ],
-        temperature=0.2,
-        max_tokens=3000
+        temperature=model_cfg["temperature"],
+        max_tokens=model_cfg["max_tokens"]
     )
-
+ 
     brd = response.choices[0].message.content.strip()
-
+ 
+    # Token + cost tracking
+    usage         = response.usage
+    input_tokens  = usage.prompt_tokens     if usage else 0
+    output_tokens = usage.completion_tokens if usage else 0
+    call_cost     = estimate_cost(input_tokens, output_tokens)
+    print(f"   📊 {input_tokens}in/{output_tokens}out tokens | ${call_cost:.6f}")
+ 
     # Add citation block from knowledge base
     if results:
         _, citations = format_context_with_citations(results)
         brd += format_citations_block(citations)
-
-    # Save as draft
+ 
     update_session(session_id, {
         "stage":     STAGE_BRD_PREVIEW,
         "brd_draft": brd,
+        # Observability
+        "brd_prompt_version": prompt_ver,
+        "brd_tokens_in":      input_tokens,
+        "brd_tokens_out":     output_tokens,
+        "brd_cost_usd":       call_cost,
     })
-
+ 
     print(f"✅ BRD preview generated ({len(brd)} chars)")
     return brd
-
-
+ 
+ 
 def approve_brd(session_id):
     """
     Stage 6b: BA approves the BRD preview.
@@ -222,20 +159,20 @@ def approve_brd(session_id):
     """
     session = load_session(session_id)
     brd     = session.get("brd_draft", "")
-
+ 
     if not brd:
         raise ValueError("No BRD draft found. Generate preview first.")
-
+ 
     update_session(session_id, {
         "brd_final":    brd,
         "brd_approved": True,
         "stage":        STAGE_USER_STORIES
     })
-
+ 
     print(f"✅ BRD approved — advancing to Stage 7: User Stories")
     return brd
-
-
+ 
+ 
 def regenerate_brd(session_id, feedback):
     """
     BA requests changes to the BRD.
@@ -243,37 +180,36 @@ def regenerate_brd(session_id, feedback):
     """
     session = load_session(session_id)
     problem = session.get("problem_refined") or session.get("problem_raw")
-
+ 
     print(f"🔄 Regenerating BRD with BA feedback...")
-
+ 
     # Append feedback to problem context for regeneration
     enhanced_problem = (
         f"{problem}\n\n"
         f"BA FEEDBACK ON PREVIOUS DRAFT:\n{feedback}"
     )
-
+ 
     # Temporarily update problem for this generation
     original_refined = session.get("problem_refined", "")
     update_session(session_id, {"problem_refined": enhanced_problem})
-
+ 
     brd = generate_brd_preview(session_id)
-
+ 
     # Restore original refined problem
     update_session(session_id, {"problem_refined": original_refined})
-
+ 
     print(f"✅ BRD regenerated with feedback applied")
     return brd
-
-
+ 
+ 
 # ── TEST ──────────────────────────────────────────────────────
 if __name__ == "__main__":
     from session_manager import create_session, update_session, STAGE_BRD_PREVIEW
-
+ 
     print("=" * 55)
     print("TEST: BRD Module — Stage 6")
     print("=" * 55)
-
-    # Create session with approved requirements
+ 
     print("\n── Step 1: Create session with approved requirements")
     session = create_session(
         problem_raw="HR manual onboarding is slow.",
@@ -281,7 +217,7 @@ if __name__ == "__main__":
         source_type="SharePoint"
     )
     sid = session["session_id"]
-
+ 
     update_session(sid, {
         "stage": STAGE_BRD_PREVIEW,
         "problem_refined": (
@@ -343,8 +279,7 @@ if __name__ == "__main__":
         ]
     })
     print(f"   Session: {sid}")
-
-    # Generate BRD preview
+ 
     print("\n── Step 2: Generate BRD preview")
     brd = generate_brd_preview(sid)
     print(f"\n{'='*55}")
@@ -352,11 +287,10 @@ if __name__ == "__main__":
     print(f"{'='*55}")
     print(brd[:1000])
     print(f"\n... ({len(brd)} total chars)")
-
-    # BA approves
+ 
     print("\n── Step 3: BA approves BRD")
     approve_brd(sid)
-
+ 
     session = load_session(sid)
     print(f"   Stage   : {session['stage']} — {session['stage_name']}")
     print(f"   Approved: {session['brd_approved']}")
