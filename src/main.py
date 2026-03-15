@@ -47,6 +47,8 @@ from requirements_module import (
     advance_to_brd
 )
 from requirements_agent import validate_requirements
+from brd_review_agent import review_brd
+from lg_coordinator import lg_validate_requirements, lg_review_brd, lg_run_both_agents
 from brd_module import (
     generate_brd_preview, approve_brd, regenerate_brd
 )
@@ -370,6 +372,70 @@ def api_regenerate_brd(session_id: str, req: FeedbackRequest):
     try:
         brd = regenerate_brd(session_id, req.feedback)
         return {"brd": brd}
+    except Exception as e:
+        raise HTTPException(500, str(e))
+ 
+ 
+@app.post("/sessions/{session_id}/brd/review")
+def api_review_brd(session_id: str):
+    """
+    Feature 8 — BRD Review Agent.
+    Multi-agent coordination: reads Feature 7 requirements quality score
+    and adjusts BRD quality threshold accordingly.
+ 
+    Tool 1: Requirements traceability check (Python, no GPT)
+    Tool 2: BRD quality check — 6 BABOK dimensions (GPT)
+    Tool 3: Stakeholder alignment vs Stage 3 analysis (GPT)
+    Reflection: rewrites weak sections until score >= threshold (max 3x).
+ 
+    Returns quality score, section issues, traceability gaps,
+    stakeholder gaps, suggested section rewrites.
+    """
+    try:
+        result = review_brd(session_id)
+        return result
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    except Exception as e:
+        raise HTTPException(500, str(e))
+ 
+ 
+# ══════════════════════════════════════════════════════════════
+# LANGGRAPH AGENTS — Feature 7 + 8 via LangGraph
+# ══════════════════════════════════════════════════════════════
+ 
+@app.post("/sessions/{session_id}/requirements/validate/lg")
+def api_validate_requirements_lg(session_id: str):
+    """LangGraph version of Requirements Validation Agent."""
+    try:
+        result = lg_validate_requirements(session_id)
+        return result
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    except Exception as e:
+        raise HTTPException(500, str(e))
+ 
+ 
+@app.post("/sessions/{session_id}/brd/review/lg")
+def api_review_brd_lg(session_id: str):
+    """LangGraph version of BRD Review Agent."""
+    try:
+        result = lg_review_brd(session_id)
+        return result
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    except Exception as e:
+        raise HTTPException(500, str(e))
+ 
+ 
+@app.post("/sessions/{session_id}/agents/run-all")
+def api_run_all_agents(session_id: str):
+    """Run F7 then F8 sequentially in one LangGraph invocation."""
+    try:
+        result = lg_run_both_agents(session_id)
+        return result
+    except ValueError as e:
+        raise HTTPException(400, str(e))
     except Exception as e:
         raise HTTPException(500, str(e))
  
