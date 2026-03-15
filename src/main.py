@@ -46,6 +46,7 @@ from requirements_module import (
     bulk_update_requirements, get_requirements_summary,
     advance_to_brd
 )
+from requirements_agent import validate_requirements
 from brd_module import (
     generate_brd_preview, approve_brd, regenerate_brd
 )
@@ -317,6 +318,26 @@ def api_advance_to_brd(session_id: str):
     try:
         advance_to_brd(session_id)
         return {"success": True}
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    except Exception as e:
+        raise HTTPException(500, str(e))
+ 
+ 
+@app.post("/sessions/{session_id}/requirements/validate")
+def api_validate_requirements(session_id: str):
+    """
+    Feature 7 — Requirements Validation Agent.
+    Runs 3-tool observe-plan-act loop:
+      Tool 1: KB contradiction search (Python, no GPT)
+      Tool 2: BABOK quality check (GPT)
+      Tool 3: Meeting decisions cross-reference (GPT)
+    Reflection loop: if quality_score < 70 → re-evaluate up to 3x.
+    Returns quality score, issues, suggested fixes, meeting conflicts.
+    """
+    try:
+        result = validate_requirements(session_id)
+        return result
     except ValueError as e:
         raise HTTPException(400, str(e))
     except Exception as e:

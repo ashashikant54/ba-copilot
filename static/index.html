@@ -482,10 +482,62 @@ label{display:block;font-size:11.5px;color:var(--ink3);font-weight:600;margin-bo
       </div>
       <p style="font-size:12px;color:var(--ink4);margin-bottom:14px;">Review each requirement. Accept, edit, or reject before generating the BRD.</p>
       <div id="requirementsContainer"></div>
+ 
+      <!-- Agent Validate button -->
       <div class="btn-row" style="margin-top:16px;">
-        <button class="btn btn-gold btn-full" id="generateBrdBtn" onclick="advanceToBrd()" disabled>📄 Generate BRD Preview</button>
+        <button class="btn btn-navy" id="validateReqBtn" onclick="validateRequirements()"
+                style="flex:1;padding:11px;">
+          🤖 Validate with AI Agent
+        </button>
+        <button class="btn btn-gold btn-full" id="generateBrdBtn" onclick="advanceToBrd()" disabled
+                style="flex:2;margin-top:0;">
+          📄 Generate BRD Preview
+        </button>
       </div>
       <div id="s5Status" class="status"></div>
+    </div>
+ 
+    <!-- Agent Validation Results Panel -->
+    <div id="agentValidationPanel" style="display:none;margin-top:4px;">
+      <div class="card" id="agentScoreCard">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+          <div class="card-title" style="margin:0;">🤖 Requirements Validation Agent</div>
+          <span id="agentIterBadge" style="font-size:11px;color:var(--ink5);background:var(--bg2);padding:3px 9px;border-radius:5px;border:1px solid var(--border);"></span>
+        </div>
+        <div style="display:flex;align-items:center;gap:20px;margin-bottom:14px;">
+          <div id="agentScoreCircle" style="width:72px;height:72px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:700;border:3px solid;"></div>
+          <div style="flex:1;">
+            <div style="font-size:13px;font-weight:600;color:var(--ink1);margin-bottom:4px;" id="agentPassLabel"></div>
+            <div style="font-size:12px;color:var(--ink4);" id="agentSummaryText"></div>
+            <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;" id="agentMetaBadges"></div>
+          </div>
+        </div>
+        <div style="margin-bottom:4px;display:flex;justify-content:space-between;">
+          <span style="font-size:11px;color:var(--ink5);">Quality Score</span>
+          <span style="font-size:11px;color:var(--ink5);">Threshold: 70</span>
+        </div>
+        <div style="height:8px;background:var(--bg3);border-radius:4px;overflow:hidden;margin-bottom:4px;">
+          <div id="agentScoreBar" style="height:100%;border-radius:4px;transition:width .6s ease;"></div>
+        </div>
+        <div style="position:relative;height:12px;">
+          <div style="position:absolute;left:70%;top:0;width:1px;height:10px;background:var(--ink5);opacity:.5;"></div>
+          <span style="position:absolute;left:70%;top:0;font-size:9px;color:var(--ink5);margin-left:3px;">70</span>
+        </div>
+      </div>
+      <div id="agentIssuesList"></div>
+      <div id="agentMeetingConflictsCard" style="display:none;">
+        <div class="card">
+          <div class="card-title">⚠️ Meeting Decision Conflicts</div>
+          <div id="agentMeetingConflictsList"></div>
+        </div>
+      </div>
+      <div id="agentMissingFromMeetingsCard" style="display:none;">
+        <div class="card">
+          <div class="card-title">💡 Requirements Suggested from Meetings</div>
+          <p style="font-size:12px;color:var(--ink4);margin-bottom:10px;">These decisions were captured in meetings but have no corresponding requirement yet.</p>
+          <div id="agentMissingFromMeetingsList"></div>
+        </div>
+      </div>
     </div>
   </div>
  
@@ -1628,6 +1680,218 @@ async function viewMeeting(meetingId){
     else{const storeBtn=document.querySelector('[onclick="storeMeetingToKb()"]');if(storeBtn){storeBtn.textContent='💾 Approve & Store in Knowledge Base';storeBtn.disabled=false;}showStatus('meetingStoreStatus','','');}
     document.getElementById('meetingResults').scrollIntoView({behavior:'smooth',block:'start'});
   }catch(e){alert('Error loading meeting: '+e.message);}
+}
+ 
+// ═══════════════════════════════════════════════════════════
+// FEATURE 7 — Requirements Validation Agent
+// ═══════════════════════════════════════════════════════════
+ 
+async function validateRequirements() {
+  if(!currentSessionId) return showStatus('s5Status','err','No active session');
+  const btn = document.getElementById('validateReqBtn');
+  btn.disabled = true;
+  btn.textContent = '⏳ Agent running...';
+  document.getElementById('agentValidationPanel').style.display = 'none';
+  showStatus('s5Status','load','<span class="spin"></span> Agent running — Tool 1: KB search → Tool 2: BABOK check → Tool 3: Meeting cross-reference...');
+ 
+  try {
+    const res  = await fetch(`/sessions/${currentSessionId}/requirements/validate`, {method:'POST'});
+    const data = await res.json();
+ 
+    if(!res.ok) {
+      showStatus('s5Status','err', `❌ ${data.detail || 'Validation failed'}`);
+      return;
+    }
+ 
+    renderAgentValidation(data);
+    document.getElementById('agentValidationPanel').style.display = 'block';
+ 
+    const score = data.quality_score || 0;
+    const msg = data.passed
+      ? `✅ Validation passed — ${score}/100 (${data.iterations} iteration${data.iterations===1?'':'s'})`
+      : `⚠️ Quality score ${score}/100 — review issues and apply fixes below`;
+    showStatus('s5Status', data.passed ? 'ok' : 'load', msg);
+ 
+  } catch(e) {
+    showStatus('s5Status','err','Network error: ' + e.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '🤖 Re-validate';
+  }
+}
+ 
+function renderAgentValidation(data) {
+  const score      = data.quality_score || 0;
+  const passed     = data.passed;
+  const iterations = data.iterations || 1;
+  const fixes      = data.suggested_fixes || {};
+  const confidence = data.confidence || 'Low';
+ 
+  // ── Score circle ─────────────────────────────────────────
+  const color = score >= 80 ? 'var(--green)' : score >= 70 ? 'var(--amber)' : 'var(--red)';
+  const bgColor = score >= 80 ? 'var(--green-lt)' : score >= 70 ? 'var(--amber-lt)' : 'var(--red-lt)';
+ 
+  const circle = document.getElementById('agentScoreCircle');
+  circle.textContent = score;
+  circle.style.color = color;
+  circle.style.borderColor = color;
+  circle.style.background = bgColor;
+ 
+  document.getElementById('agentScoreBar').style.width = score + '%';
+  document.getElementById('agentScoreBar').style.background =
+    score >= 80 ? 'var(--green)' : score >= 70 ? 'var(--amber)' : 'var(--red)';
+ 
+  document.getElementById('agentPassLabel').innerHTML =
+    passed
+      ? `<span style="color:var(--green)">✅ Requirements pass quality threshold</span>`
+      : `<span style="color:var(--red)">⚠️ Requirements need improvement</span>`;
+ 
+  document.getElementById('agentSummaryText').textContent = data.summary || '';
+ 
+  document.getElementById('agentIterBadge').textContent =
+    `${iterations} iteration${iterations===1?'':'s'} · ${confidence} confidence`;
+ 
+  // Meta badges
+  const fixCount = Object.keys(fixes).length;
+  const conflictCount = (data.meeting_conflicts || []).length;
+  const missingCount = (data.missing_from_meetings || []).length;
+  let badges = '';
+  if(fixCount > 0)
+    badges += `<span style="font-size:11px;padding:2px 8px;border-radius:5px;background:var(--blue-lt);color:var(--blue);border:1px solid var(--blue-mid);">💡 ${fixCount} fix${fixCount===1?'':'es'} suggested</span>`;
+  if(conflictCount > 0)
+    badges += `<span style="font-size:11px;padding:2px 8px;border-radius:5px;background:var(--red-lt);color:var(--red);border:1px solid var(--red-mid);">⚠️ ${conflictCount} meeting conflict${conflictCount===1?'':'s'}</span>`;
+  if(missingCount > 0)
+    badges += `<span style="font-size:11px;padding:2px 8px;border-radius:5px;background:var(--amber-lt);color:var(--amber);border:1px solid #fde68a;">💬 ${missingCount} suggested from meetings</span>`;
+  document.getElementById('agentMetaBadges').innerHTML = badges;
+ 
+  // ── Per-requirement issues ────────────────────────────────
+  const issuesList = document.getElementById('agentIssuesList');
+  issuesList.innerHTML = '';
+ 
+  const reqScores = data.requirement_scores || [];
+  reqScores.forEach(rs => {
+    const issues     = rs.issues || [];
+    const contras    = rs.kb_contradictions || [];
+    const composite  = rs.composite_score || 0;
+    const hasFix     = fixes[rs.req_id];
+    const allIssues  = issues.length + contras.length;
+ 
+    if(allIssues === 0 && !hasFix) return; // skip perfect requirements
+ 
+    const issueColor = composite >= 80 ? 'var(--green)' : composite >= 70 ? 'var(--amber)' : 'var(--red)';
+ 
+    let issuesHtml = '';
+    issues.forEach(issue => {
+      const sevColor = issue.severity==='High'?'var(--red)':issue.severity==='Medium'?'var(--amber)':'var(--blue)';
+      const sevBg    = issue.severity==='High'?'var(--red-lt)':issue.severity==='Medium'?'var(--amber-lt)':'var(--blue-lt)';
+      issuesHtml += `
+        <div style="background:var(--bg);border:1px solid var(--border);border-radius:7px;padding:9px 11px;margin-bottom:6px;">
+          <div style="display:flex;gap:6px;align-items:flex-start;margin-bottom:4px;">
+            <span style="font-size:10px;font-weight:700;padding:2px 6px;border-radius:4px;background:${sevBg};color:${sevColor};flex-shrink:0;">${issue.severity}</span>
+            <span style="font-size:11px;font-weight:600;color:var(--ink3);text-transform:uppercase;letter-spacing:.5px;">${issue.dimension || ''}</span>
+          </div>
+          <div style="font-size:12.5px;color:var(--ink2);margin-bottom:6px;">${issue.description || ''}</div>
+          ${issue.suggested_fix ? `
+            <div style="background:var(--blue-lt);border:1px solid var(--blue-mid);border-radius:6px;padding:7px 10px;font-size:12px;color:var(--blue);">
+              <strong>💡 Suggested fix:</strong> ${issue.suggested_fix}
+            </div>` : ''}
+        </div>`;
+    });
+ 
+    contras.forEach(contra => {
+      issuesHtml += `
+        <div style="background:var(--amber-lt);border:1px solid #fde68a;border-radius:7px;padding:9px 11px;margin-bottom:6px;">
+          <div style="font-size:10px;font-weight:700;color:var(--amber);margin-bottom:3px;">KB CONTRADICTION</div>
+          <div style="font-size:12.5px;color:var(--ink2);">${contra.description || ''}</div>
+          ${contra.source ? `<div style="font-size:10px;color:var(--ink5);margin-top:3px;">Source: ${contra.source}</div>` : ''}
+        </div>`;
+    });
+ 
+    // Suggested fix from reflection loop
+    let fixHtml = '';
+    if(hasFix) {
+      const origText = rs.effective_text || '';
+      fixHtml = `
+        <div style="margin-top:8px;background:var(--green-lt);border:1px solid var(--green-mid);border-radius:8px;padding:10px 12px;">
+          <div style="font-size:10px;font-weight:700;color:var(--green);margin-bottom:6px;text-transform:uppercase;letter-spacing:.8px;">🤖 Agent-Suggested Improvement</div>
+          <div style="font-size:12px;color:var(--ink4);margin-bottom:4px;font-style:italic;">Original: ${origText}</div>
+          <div style="font-size:12.5px;color:var(--ink1);font-weight:500;margin-bottom:8px;">${hasFix}</div>
+          <button class="btn btn-green" style="font-size:11px;padding:5px 12px;"
+                  onclick="applyAgentFix('${rs.req_id}', ${JSON.stringify(hasFix)})">
+            ✅ Apply this fix
+          </button>
+        </div>`;
+    }
+ 
+    issuesList.innerHTML += `
+      <div class="card" style="border-left:3px solid ${issueColor};margin-bottom:10px;">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+          <span style="font-size:11px;font-weight:700;color:var(--blue);font-family:var(--mono);">${rs.req_id}</span>
+          <span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:5px;background:${composite>=80?'var(--green-lt)':composite>=70?'var(--amber-lt)':'var(--red-lt)'};color:${issueColor};border:1px solid ${composite>=80?'var(--green-mid)':composite>=70?'#fde68a':'var(--red-mid)'};">${composite}/100</span>
+          <span style="font-size:11px;color:var(--ink4);">${allIssues} issue${allIssues===1?'':'s'}</span>
+        </div>
+        ${issuesHtml}
+        ${fixHtml}
+      </div>`;
+  });
+ 
+  if(issuesList.innerHTML === '') {
+    issuesList.innerHTML = `
+      <div class="card" style="border-left:3px solid var(--green);">
+        <div style="font-size:13px;color:var(--green);font-weight:500;">
+          ✅ All requirements pass BABOK quality standards — no issues found.
+        </div>
+      </div>`;
+  }
+ 
+  // ── Meeting conflicts ─────────────────────────────────────
+  const conflicts = data.meeting_conflicts || [];
+  if(conflicts.length > 0) {
+    document.getElementById('agentMeetingConflictsCard').style.display = 'block';
+    const cList = document.getElementById('agentMeetingConflictsList');
+    cList.innerHTML = conflicts.map(c => `
+      <div style="background:var(--bg);border:1px solid var(--border);border-left:3px solid var(--red);border-radius:7px;padding:10px 12px;margin-bottom:8px;">
+        <div style="display:flex;gap:6px;align-items:center;margin-bottom:4px;">
+          <span style="font-size:11px;font-weight:700;color:var(--blue);font-family:var(--mono);">${c.req_id}</span>
+          <span style="font-size:10px;font-weight:700;padding:2px 6px;border-radius:4px;background:var(--red-lt);color:var(--red);">${c.severity}</span>
+        </div>
+        <div style="font-size:12.5px;color:var(--ink1);font-weight:500;margin-bottom:4px;">${c.conflict_description || ''}</div>
+        <div style="font-size:11px;color:var(--ink5);">Meeting decision: "${c.meeting_decision || ''}"</div>
+      </div>`).join('');
+  } else {
+    document.getElementById('agentMeetingConflictsCard').style.display = 'none';
+  }
+ 
+  // ── Missing from meetings ─────────────────────────────────
+  const missing = data.missing_from_meetings || [];
+  if(missing.length > 0) {
+    document.getElementById('agentMissingFromMeetingsCard').style.display = 'block';
+    const mList = document.getElementById('agentMissingFromMeetingsList');
+    mList.innerHTML = missing.map(m => `
+      <div style="background:var(--bg);border:1px solid var(--border);border-left:3px solid var(--amber);border-radius:7px;padding:10px 12px;margin-bottom:8px;">
+        <div style="font-size:11px;color:var(--ink5);margin-bottom:4px;">Meeting decision: "${m.meeting_decision || ''}"</div>
+        <div style="font-size:12.5px;color:var(--ink1);font-weight:500;margin-bottom:6px;">💡 ${m.suggested_requirement || ''}</div>
+        <div style="font-size:11px;color:var(--ink4);font-style:italic;">${m.rationale || ''}</div>
+      </div>`).join('');
+  } else {
+    document.getElementById('agentMissingFromMeetingsCard').style.display = 'none';
+  }
+}
+ 
+function applyAgentFix(reqId, fixText) {
+  // Update the requirement's edit box with the suggested fix
+  // and trigger an "edited" status save
+  const editBox = document.getElementById(`edittext-${reqId}`);
+  if(editBox) {
+    editBox.value = fixText;
+    // Show the edit box if hidden
+    const editDiv = document.getElementById(`edit-${reqId}`);
+    if(editDiv) editDiv.classList.add('show');
+  }
+  // Save the edit
+  submitEdit(reqId);
+  showStatus('s5Status','ok',
+    `✅ Fix applied to ${reqId} — review the change in the requirement card above`);
 }
  
 // ═══════════════════════════════════════════════════════════
