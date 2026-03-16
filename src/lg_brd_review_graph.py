@@ -51,6 +51,12 @@ from brd_review_agent import (
 )
 from session_manager import load_session, update_session
 from prompt_manager import get_prompt_version
+from telemetry import (
+    agent_span, tool_span, llm_span,
+    record_llm_usage, record_quality_score,
+    record_reflection_triggered, record_agent_coordination,
+    get_tracer,
+)
  
  
 # ══════════════════════════════════════════════════════════════
@@ -77,6 +83,11 @@ def initialise_brd_node(state: BRDReviewAgentState) -> dict:
         effective_threshold = 80 if f7_score < 70 else BRD_QUALITY_THRESHOLD
         if f7_score < 70:
             print(f"   ⚠️  Raising BRD threshold to {effective_threshold}")
+        # OTel: record coordination event so it's visible in App Insights
+        from opentelemetry import trace as _trace
+        ctx_span = _trace.get_current_span()
+        if ctx_span and ctx_span.is_recording():
+            record_agent_coordination(ctx_span, f7_score, effective_threshold)
     else:
         effective_threshold = BRD_QUALITY_THRESHOLD
  
@@ -107,12 +118,18 @@ def traceability_node(state: BRDReviewAgentState) -> dict:
     Checks every approved REQ-xxx ID appears in the BRD.
     Fast and deterministic — no LLM needed.
     """
-    print(f"\n🔧 [LangGraph] Tool 1: Traceability Check")
-    traceability = _tool_traceability_check(
-        state["current_brd"], state["approved_reqs"]
-    )
-    print(f"   Covered: {len(traceability['covered_ids'])} | "
-          f"Missing: {len(traceability['missing_ids'])}")
+    with tool_span("traceability_check", state["session_id"]) as span:
+        print(f"\n🔧 [LangGraph] Tool 1: Traceability Check")
+        traceability = _tool_traceability_check(
+            state["current_brd"], state["approved_reqs"]
+        )
+        covered = len(traceability["covered_ids"])
+        missing = len(traceability["missing_ids"])
+        print(f"   Covered: {covered} | Missing: {missing}")
+        span.set_attribute("coanalytica.traceability.covered",     covered)
+        span.set_attribute("coanalytica.traceability.missing",     missing)
+        span.set_attribute("coanalytica.traceability.coverage_pct",
+                           traceability.get("coverage_pct", 0))
  
     return {"traceability": traceability}
  
@@ -124,16 +141,21 @@ def stakeholder_alignment_node(state: BRDReviewAgentState) -> dict:
     Placed before the quality check loop so it runs once.
     Results flow into compile_brd_result_node at the end.
     """
-    print(f"\n🔧 [LangGraph] Tool 3: Stakeholder Alignment")
- 
-    # Build minimal session-like object for the tool function
-    session_stub = {
-        "impacted_stakeholders": state["analysis_stakeholders"]
-    }
-    stakeholder_result, t_in, t_out, cost = _tool_stakeholder_alignment(
-        state["current_brd"], session_stub
-    )
-    print(f"   Missing: {len(stakeholder_result.get('missing_from_brd', []))}")
+    with tool_span("stakeholder_alignment", state["session_id"]) as span:
+        print(f"\n🔧 [LangGraph] Tool 3: Stakeholder Alignment")
+        session_stub = {"impacted_stakeholders": state["analysis_stakeholders"]}
+        stakeholder_result, t_in, t_out, cost = _tool_stakeholder_alignment(
+            state["current_brd"], session_stub
+        )
+        missing_stk  = len(stakeholder_result.get("missing_from_brd", []))
+        wrong_stk    = len(stakeholder_result.get("wrong_involvement", []))
+        print(f"   Missing: {missing_stk}")
+        span.set_attribute("coanalytica.stakeholder.missing",          missing_stk)
+        span.set_attribute("coanalytica.stakeholder.wrong_involvement", wrong_stk)
+        if t_in:
+            span.set_attribute("gen_ai.usage.input_tokens",  t_in)
+            span.set_attribute("gen_ai.usage.output_tokens", t_out)
+            span.set_attribute("coanalytica.cost.usd",       cost)
  
     return {
         "stakeholder_result": stakeholder_result,
@@ -152,17 +174,35 @@ def brd_quality_node(state: BRDReviewAgentState) -> dict:
     """
     session = load_session(state["session_id"])
  
-    print(f"\n🔧 [LangGraph] Tool 2: BRD Quality (iteration {state['brd_iteration']}/{MAX_ITERATIONS})")
-    quality_result, t_in, t_out, cost = _tool_brd_quality_check(
-        state["current_brd"],
-        state["approved_reqs"],
-        state["traceability"],
-        session,
-        state["brd_iteration"],
-        state["previous_issues"]
-    )
-    brd_quality_score = quality_result.get("overall_quality_score", 0)
-    print(f"   Score: {brd_quality_score}/100 (threshold: {state['effective_threshold']})")
+    brd_iteration = state["brd_iteration"]
+    with tool_span("brd_quality_check", state["session_id"],
+                   iteration=brd_iteration) as span:
+        print(f"\n🔧 [LangGraph] Tool 2: BRD Quality (iteration {brd_iteration}/{MAX_ITERATIONS})")
+        quality_result, t_in, t_out, cost = _tool_brd_quality_check(
+            state["current_brd"],
+            state["approved_reqs"],
+            state["traceability"],
+            session,
+            brd_iteration,
+            state["previous_issues"]
+        )
+        brd_quality_score = quality_result.get("overall_quality_score", 0)
+        threshold = state["effective_threshold"]
+        print(f"   Score: {brd_quality_score}/100 (threshold: {threshold})")
+ 
+        record_quality_score(span, brd_quality_score, threshold,
+                             brd_quality_score >= threshold)
+        span.set_attribute("gen_ai.usage.input_tokens",  t_in)
+        span.set_attribute("gen_ai.usage.output_tokens", t_out)
+        span.set_attribute("coanalytica.cost.usd",       cost)
+ 
+        # Record dimension scores as span attributes
+        dims = quality_result.get("dimension_scores", {})
+        for dim, score in dims.items():
+            span.set_attribute(f"coanalytica.brd.dim.{dim}", score)
+ 
+        if brd_quality_score < threshold and brd_iteration < MAX_ITERATIONS:
+            record_reflection_triggered(span, brd_iteration, brd_quality_score)
  
     return {
         "quality_result":    quality_result,
@@ -183,31 +223,38 @@ def brd_reflection_node(state: BRDReviewAgentState) -> dict:
     session = load_session(state["session_id"])
  
     issues_text = _extract_section_issues_text(state["quality_result"])
-    print(f"\n🔄 [LangGraph] BRD Reflection — rewriting weak sections...")
+    with tool_span("brd_reflection", state["session_id"],
+                   iteration=state["brd_iteration"]) as span:
+        print(f"\n🔄 [LangGraph] BRD Reflection — rewriting weak sections...")
  
-    reflection_result, t_in, t_out, cost = _tool_brd_reflection(
-        state["current_brd"],
-        state["approved_reqs"],
-        issues_text,
-        state["brd_quality_score"],
-        state["effective_threshold"],
-        session
-    )
+        reflection_result, t_in, t_out, cost = _tool_brd_reflection(
+            state["current_brd"],
+            state["approved_reqs"],
+            issues_text,
+            state["brd_quality_score"],
+            state["effective_threshold"],
+            session
+        )
  
-    # Apply section rewrites
-    improved_sections = reflection_result.get("improved_sections", [])
-    updated_brd = state["current_brd"]
-    if improved_sections:
-        updated_brd = _apply_section_rewrites(state["current_brd"], improved_sections)
-        print(f"   Sections rewritten: {len(improved_sections)}")
+        improved_sections = reflection_result.get("improved_sections", [])
+        updated_brd = state["current_brd"]
+        if improved_sections:
+            updated_brd = _apply_section_rewrites(state["current_brd"], improved_sections)
+            print(f"   Sections rewritten: {len(improved_sections)}")
+ 
+        span.set_attribute("coanalytica.reflection.sections_rewritten", len(improved_sections))
+        span.set_attribute("coanalytica.reflection.score_before", state["brd_quality_score"])
+        span.set_attribute("gen_ai.usage.input_tokens",  t_in)
+        span.set_attribute("gen_ai.usage.output_tokens", t_out)
+        span.set_attribute("coanalytica.cost.usd",       cost)
  
     return {
-        "current_brd":    updated_brd,
-        "brd_iteration":  state["brd_iteration"] + 1,
+        "current_brd":     updated_brd,
+        "brd_iteration":   state["brd_iteration"] + 1,
         "previous_issues": issues_text,
-        "brd_tokens_in":  state["brd_tokens_in"]  + t_in,
-        "brd_tokens_out": state["brd_tokens_out"] + t_out,
-        "brd_cost":       state["brd_cost"]       + cost,
+        "brd_tokens_in":   state["brd_tokens_in"]  + t_in,
+        "brd_tokens_out":  state["brd_tokens_out"] + t_out,
+        "brd_cost":        state["brd_cost"]       + cost,
     }
  
  

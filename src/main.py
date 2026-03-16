@@ -23,8 +23,13 @@ from typing import Optional
  
 from dotenv import load_dotenv
 load_dotenv()
- 
+
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+
+# ── OpenTelemetry setup ────────────────────────────────────────
+# Import telemetry early — before FastAPI app is created.
+# setup_telemetry() is called in the lifespan function below.
+from telemetry import setup_telemetry
  
 from session_manager import (
     create_session, load_session, list_sessions,
@@ -66,7 +71,26 @@ from document_registry import (
 )
 from retriever import load_and_index_document
  
-app = FastAPI(title="CoAnalytica — Phase 1")
+# ── Lifespan: initialise OTel on startup ─────────────────────
+# LangGraph added a context variable warning about asyncio — using
+# lifespan to ensure OTel is set up before first request.
+from contextlib import asynccontextmanager
+ 
+@asynccontextmanager
+async def lifespan(app):
+    # Startup
+    setup_telemetry()
+    # FastAPI auto-instrumentation: every HTTP request gets a span
+    try:
+        from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
+        FastAPIInstrumentor.instrument_app(app)
+        print("✅ FastAPI OTel instrumentation active")
+    except Exception as e:
+        print(f"ℹ️  FastAPI OTel instrumentation skipped: {e}")
+    yield
+    # Shutdown (nothing needed for OTel — BatchSpanProcessor flushes on exit)
+ 
+app = FastAPI(title="CoAnalytica — Phase 1", lifespan=lifespan)
  
 app.mount("/static", StaticFiles(directory="static"), name="static")
  

@@ -85,6 +85,11 @@ from requirements_agent import (
 )
 from session_manager import load_session, update_session
 from prompt_manager import get_prompt_version
+from telemetry import (
+    agent_span, tool_span, llm_span,
+    record_llm_usage, record_quality_score,
+    record_reflection_triggered, get_tracer,
+)
  
  
 # ══════════════════════════════════════════════════════════════
@@ -117,6 +122,16 @@ def initialise_node(state: RequirementsAgentState) -> dict:
  
     print(f"\n🤖 [LangGraph] Requirements Validation Agent — {len(working_reqs)} requirements")
  
+    # OTel: record agent start event on current span (set by caller)
+    tracer = get_tracer()
+    current_span = tracer.start_span.__self__ if hasattr(tracer.start_span, '__self__') else None
+    from opentelemetry import trace as _trace
+    ctx_span = _trace.get_current_span()
+    if ctx_span and ctx_span.is_recording():
+        ctx_span.set_attribute("coanalytica.session_id",          state["session_id"])
+        ctx_span.set_attribute("coanalytica.agent.name",          "requirements_validation")
+        ctx_span.set_attribute("coanalytica.requirements.count",  len(working_reqs))
+ 
     # PARTIAL STATE UPDATE — return only what changed
     return {
         "current_reqs":    working_reqs,
@@ -144,9 +159,12 @@ def kb_search_node(state: RequirementsAgentState) -> dict:
     """
     session = load_session(state["session_id"])
  
-    print(f"\n🔧 [LangGraph] Tool 1: KB Search")
-    kb_context = _tool_kb_search(state["current_reqs"], session)
-    print(f"   KB context: {len(kb_context)} chars")
+    with tool_span("kb_search", state["session_id"]) as span:
+        print(f"\n🔧 [LangGraph] Tool 1: KB Search")
+        kb_context = _tool_kb_search(state["current_reqs"], session)
+        print(f"   KB context: {len(kb_context)} chars")
+        span.set_attribute("coanalytica.kb.context_chars", len(kb_context))
+        span.set_attribute("coanalytica.kb.has_results",   len(kb_context) > 50)
  
     return {"kb_context": kb_context}
  
@@ -164,11 +182,22 @@ def meeting_crossref_node(state: RequirementsAgentState) -> dict:
     """
     session = load_session(state["session_id"])
  
-    print(f"\n🔧 [LangGraph] Tool 3: Meeting Cross-reference")
-    meeting_result, t_in, t_out, cost = _tool_meeting_crossref(
-        state["current_reqs"], session
-    )
-    print(f"   Conflicts: {len(meeting_result.get('conflicts', []))}")
+    with tool_span("meeting_crossref", state["session_id"]) as span:
+        print(f"\n🔧 [LangGraph] Tool 3: Meeting Cross-reference")
+        meeting_result, t_in, t_out, cost = _tool_meeting_crossref(
+            state["current_reqs"], session
+        )
+        conflicts = len(meeting_result.get("conflicts", []))
+        missing   = len(meeting_result.get("missing_requirements", []))
+        print(f"   Conflicts: {conflicts}")
+        span.set_attribute("coanalytica.meeting.conflicts",           conflicts)
+        span.set_attribute("coanalytica.meeting.missing_requirements",missing)
+        if t_in:
+            span.set_attribute(
+                "gen_ai.usage.input_tokens",  t_in)
+            span.set_attribute(
+                "gen_ai.usage.output_tokens", t_out)
+            span.set_attribute("coanalytica.cost.usd", cost)
  
     # Accumulate observability counters
     return {
@@ -192,16 +221,31 @@ def babok_check_node(state: RequirementsAgentState) -> dict:
     """
     session = load_session(state["session_id"])
  
-    print(f"\n🔧 [LangGraph] Tool 2: BABOK Check (iteration {state['iteration']}/{MAX_ITERATIONS})")
-    babok_result, t_in, t_out, cost = _tool_babok_check(
-        state["current_reqs"],
-        state["kb_context"],
-        session,
-        state["iteration"],
-        state["previous_issues"]
-    )
-    quality_score = babok_result.get("overall_quality_score", 0)
-    print(f"   Quality score: {quality_score}/100")
+    iteration = state["iteration"]
+    with tool_span("babok_check", state["session_id"], iteration=iteration) as span:
+        print(f"\n🔧 [LangGraph] Tool 2: BABOK Check (iteration {iteration}/{MAX_ITERATIONS})")
+        babok_result, t_in, t_out, cost = _tool_babok_check(
+            state["current_reqs"],
+            state["kb_context"],
+            session,
+            iteration,
+            state["previous_issues"]
+        )
+        quality_score = babok_result.get("overall_quality_score", 0)
+        print(f"   Quality score: {quality_score}/100")
+ 
+        # OTel: record quality score and token usage
+        record_quality_score(
+            span, quality_score, QUALITY_THRESHOLD,
+            quality_score >= QUALITY_THRESHOLD
+        )
+        span.set_attribute("gen_ai.usage.input_tokens",  t_in)
+        span.set_attribute("gen_ai.usage.output_tokens", t_out)
+        span.set_attribute("coanalytica.cost.usd",       cost)
+ 
+        # Emit reflection event if score is below threshold
+        if quality_score < QUALITY_THRESHOLD and iteration < MAX_ITERATIONS:
+            record_reflection_triggered(span, iteration, quality_score)
  
     return {
         "babok_result":     babok_result,
@@ -226,34 +270,43 @@ def reflection_node(state: RequirementsAgentState) -> dict:
     session = load_session(state["session_id"])
  
     issues_text = _extract_issues_text(state["babok_result"])
-    print(f"\n🔄 [LangGraph] Reflection — rewriting requirements...")
  
-    reflection_result, t_in, t_out, cost = _tool_reflection(
-        state["current_reqs"],
-        issues_text,
-        state["quality_score"],
-        session
-    )
+    with tool_span("reflection", state["session_id"],
+                   iteration=state["iteration"]) as span:
+        print(f"\n🔄 [LangGraph] Reflection — rewriting requirements...")
  
-    # Apply improvements to current_reqs
-    improved_map = {
-        r["req_id"]: r["improved_text"]
-        for r in reflection_result.get("improved_requirements", [])
-        if r.get("improved_text")
-    }
-    updated_reqs = []
-    for r in state["current_reqs"]:
-        improved = improved_map.get(r["id"])
-        updated_reqs.append({
-            **r,
-            "effective_text": improved if improved else r["effective_text"],
-        })
+        reflection_result, t_in, t_out, cost = _tool_reflection(
+            state["current_reqs"],
+            issues_text,
+            state["quality_score"],
+            session
+        )
  
-    print(f"   Improvements: {len(improved_map)}")
+        # Apply improvements to current_reqs
+        improved_map = {
+            r["req_id"]: r["improved_text"]
+            for r in reflection_result.get("improved_requirements", [])
+            if r.get("improved_text")
+        }
+        updated_reqs = []
+        for r in state["current_reqs"]:
+            improved = improved_map.get(r["id"])
+            updated_reqs.append({
+                **r,
+                "effective_text": improved if improved else r["effective_text"],
+            })
+ 
+        improvements = len(improved_map)
+        print(f"   Improvements: {improvements}")
+        span.set_attribute("coanalytica.reflection.improvements", improvements)
+        span.set_attribute("coanalytica.reflection.score_before", state["quality_score"])
+        span.set_attribute("gen_ai.usage.input_tokens",  t_in)
+        span.set_attribute("gen_ai.usage.output_tokens", t_out)
+        span.set_attribute("coanalytica.cost.usd",       cost)
  
     return {
         "current_reqs":     updated_reqs,
-        "iteration":        state["iteration"] + 1,  # increment counter
+        "iteration":        state["iteration"] + 1,
         "previous_issues":  issues_text,
         "total_tokens_in":  state["total_tokens_in"]  + t_in,
         "total_tokens_out": state["total_tokens_out"] + t_out,
@@ -306,6 +359,17 @@ def compile_result_node(state: RequirementsAgentState) -> dict:
  
     print(f"\n✅ [LangGraph] F7 complete: score={final_score}, "
           f"fixes={len(suggested_fixes)}, cost=${state['total_cost']:.6f}")
+ 
+    # OTel: record final agent metrics on current span
+    from opentelemetry import trace as _trace
+    ctx_span = _trace.get_current_span()
+    if ctx_span and ctx_span.is_recording():
+        ctx_span.set_attribute("coanalytica.agent.final_score",    final_score)
+        ctx_span.set_attribute("coanalytica.agent.total_cost_usd", round(state["total_cost"], 6))
+        ctx_span.set_attribute("coanalytica.agent.total_tokens",
+                                state["total_tokens_in"] + state["total_tokens_out"])
+        ctx_span.set_attribute("coanalytica.agent.fixes_suggested", len(suggested_fixes))
+        ctx_span.set_attribute("coanalytica.agent.iterations",      state["iteration"])
  
     return {
         "suggested_fixes":    suggested_fixes,

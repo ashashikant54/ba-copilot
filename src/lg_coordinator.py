@@ -70,6 +70,7 @@ from lg_state import CoAnalyticaState, RequirementsAgentState, BRDReviewAgentSta
 from lg_requirements_graph import build_requirements_validation_graph
 from lg_brd_review_graph    import build_brd_review_graph
 from session_manager import load_session
+from telemetry import agent_span, get_tracer
  
  
 # ── Build subgraphs once at module load ────────────────────────
@@ -158,12 +159,11 @@ def run_requirements_agent(state: CoAnalyticaState) -> dict:
     f7_output = _get_requirements_graph().invoke(f7_input)
  
     # Extract results and write back to coordinator state
-    f7_result       = f7_output.get("validation_result", {})
+    f7_result        = f7_output.get("validation_result", {})
     f7_quality_score = f7_result.get("quality_score", 0)
  
     print(f"\n🔗 [Coordinator] F7 complete — score: {f7_quality_score}")
  
-    # PARTIAL STATE UPDATE to CoAnalyticaState
     return {
         "f7_result":        f7_result,
         "f7_quality_score": f7_quality_score,
@@ -337,20 +337,26 @@ def lg_validate_requirements(session_id: str) -> dict:
     LangGraph version of validate_requirements().
     Called by POST /sessions/{id}/requirements/validate/lg
     """
-    result = _get_coordinator().invoke({
-        "session_id":     session_id,
-        "agent_to_run":   "validate_requirements",
-        "f7_result":      None,
-        "f7_quality_score": None,
-        "f8_result":      None,
-        "f8_quality_score": None,
-        "error":          None,
-    })
+    # agent_span is the ROOT span for this entire agent run.
+    # All node spans created inside the graph will be children of this span.
+    with agent_span("requirements_validation", session_id) as span:
+        result = _get_coordinator().invoke({
+            "session_id":       session_id,
+            "agent_to_run":     "validate_requirements",
+            "f7_result":        None,
+            "f7_quality_score": None,
+            "f8_result":        None,
+            "f8_quality_score": None,
+            "error":            None,
+        })
  
-    if result.get("error"):
-        raise ValueError(result["error"])
+        if result.get("error"):
+            raise ValueError(result["error"])
  
-    return result.get("f7_result", {})
+        f7 = result.get("f7_result", {})
+        span.set_attribute("coanalytica.agent.quality_score", f7.get("quality_score", 0))
+        span.set_attribute("coanalytica.agent.passed",        f7.get("passed", False))
+        return f7
  
  
 def lg_review_brd(session_id: str) -> dict:
@@ -358,47 +364,58 @@ def lg_review_brd(session_id: str) -> dict:
     LangGraph version of review_brd().
     Called by POST /sessions/{id}/brd/review/lg
     """
-    # Check if F7 was already run — pass its score for coordination
     from session_manager import load_session as _ls
-    session = _ls(session_id)
+    session  = _ls(session_id)
     f7_score = session.get("agent_validation_score")
  
-    result = _get_coordinator().invoke({
-        "session_id":       session_id,
-        "agent_to_run":     "review_brd",
-        "f7_result":        None,
-        "f7_quality_score": f7_score,  # coordination: use stored F7 score
-        "f8_result":        None,
-        "f8_quality_score": None,
-        "error":            None,
-    })
+    with agent_span("brd_review", session_id) as span:
+        if f7_score is not None:
+            span.set_attribute("coanalytica.f7.quality_score", f7_score)
  
-    if result.get("error"):
-        raise ValueError(result["error"])
+        result = _get_coordinator().invoke({
+            "session_id":       session_id,
+            "agent_to_run":     "review_brd",
+            "f7_result":        None,
+            "f7_quality_score": f7_score,
+            "f8_result":        None,
+            "f8_quality_score": None,
+            "error":            None,
+        })
  
-    return result.get("f8_result", {})
+        if result.get("error"):
+            raise ValueError(result["error"])
+ 
+        f8 = result.get("f8_result", {})
+        span.set_attribute("coanalytica.agent.quality_score", f8.get("quality_score", 0))
+        span.set_attribute("coanalytica.agent.passed",        f8.get("passed", False))
+        return f8
  
  
 def lg_run_both_agents(session_id: str) -> dict:
     """
     Run F7 then F8 sequentially in one graph invocation.
     Called by POST /sessions/{id}/agents/run-all
-    This is the full multi-agent pipeline in a single call.
+    This creates ONE parent trace covering both agents —
+    you can see the full pipeline in a single App Insights trace.
     """
-    result = _get_coordinator().invoke({
-        "session_id":       session_id,
-        "agent_to_run":     "both",
-        "f7_result":        None,
-        "f7_quality_score": None,
-        "f8_result":        None,
-        "f8_quality_score": None,
-        "error":            None,
-    })
+    with agent_span("multi_agent_pipeline", session_id) as span:
+        result = _get_coordinator().invoke({
+            "session_id":       session_id,
+            "agent_to_run":     "both",
+            "f7_result":        None,
+            "f7_quality_score": None,
+            "f8_result":        None,
+            "f8_quality_score": None,
+            "error":            None,
+        })
  
-    if result.get("error"):
-        raise ValueError(result["error"])
+        if result.get("error"):
+            raise ValueError(result["error"])
  
-    return {
-        "f7_result": result.get("f7_result", {}),
-        "f8_result": result.get("f8_result", {}),
-    }
+        f7 = result.get("f7_result", {})
+        f8 = result.get("f8_result", {})
+        span.set_attribute("coanalytica.f7.quality_score", f7.get("quality_score", 0))
+        span.set_attribute("coanalytica.f8.quality_score", f8.get("quality_score", 0))
+        span.set_attribute("coanalytica.pipeline.both_passed",
+                           f7.get("passed", False) and f8.get("passed", False))
+        return {"f7_result": f7, "f8_result": f8}
