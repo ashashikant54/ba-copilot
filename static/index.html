@@ -317,6 +317,7 @@ label{display:block;font-size:11.5px;color:var(--ink3);font-weight:600;margin-bo
   <div class="tab" onclick="showTab('sessions',this)">📋 Sessions</div>
   <div class="tab" onclick="showTab('meetings',this)">🎥 Meetings</div>
   <div class="tab" onclick="showTab('admin',this)">🔧 Admin</div>
+  <div class="tab" onclick="showTab('eval',this)">🧪 Eval</div>
 </div>
  
 <!-- ═══════════════════════════════════════════════
@@ -961,6 +962,7 @@ function showTab(name, el) {
   if(name==='sessions'){ loadSessions(); }
   if(name==='meetings'){ populateMeetingDropdowns(); loadMeetings(); }
   if(name==='admin')   { loadAdminDashboard(); }
+  if(name==='eval')    { loadLatestEvalResults(); }
 }
  
 // ── Stage Navigation ─────────────────────────────────────────
@@ -1743,6 +1745,211 @@ async function viewMeeting(meetingId){
 }
  
 // ═══════════════════════════════════════════════════════════
+// EVALUATION FRAMEWORK — Feature 9
+// ═══════════════════════════════════════════════════════════
+ 
+async function runEval(useLlmJudge) {
+  const banner = document.getElementById('evalRunningBanner');
+  const msg    = document.getElementById('evalRunningMsg');
+  banner.style.display = 'block';
+  msg.textContent = useLlmJudge
+    ? '🤖 Running full evaluation with LLM-as-Judge... (may take 2-3 minutes)'
+    : '⚡ Running quick evaluation with lexical check...';
+ 
+  try {
+    const url = `/eval/run?use_llm_judge=${useLlmJudge}`;
+    const res  = await fetch(url, { method: 'POST' });
+    const data = await res.json();
+ 
+    if (!res.ok) {
+      banner.style.display = 'none';
+      alert('Eval failed: ' + (data.detail || 'Unknown error'));
+      return;
+    }
+ 
+    renderEvalResults(data);
+    banner.style.display = 'none';
+  } catch(e) {
+    banner.style.display = 'none';
+    alert('Network error: ' + e.message);
+  }
+}
+ 
+function renderEvalResults(data) {
+  const agg = data.aggregate || {};
+ 
+  // Show tiles
+  document.getElementById('evalTiles').style.display = 'grid';
+  document.getElementById('eval-score').textContent = agg.avg_agent_score || '—';
+  document.getElementById('eval-accuracy').textContent =
+    `${((agg.score_accuracy||0)*100).toFixed(0)}% score accuracy`;
+  document.getElementById('eval-f1').textContent =
+    `${((agg.issue_detection_f1||0)*100).toFixed(0)}%`;
+  document.getElementById('eval-precision-recall').textContent =
+    `P: ${((agg.issue_detection_precision||0)*100).toFixed(0)}% · R: ${((agg.issue_detection_recall||0)*100).toFixed(0)}%`;
+  document.getElementById('eval-hall').textContent =
+    `${((agg.hallucination_detection_accuracy||0)*100).toFixed(0)}%`;
+  document.getElementById('eval-cost').textContent =
+    `$${(agg.total_cost_usd||0).toFixed(5)}`;
+  document.getElementById('eval-cases').textContent = `${data.cases_run} cases run`;
+ 
+  // Prompt versions
+  const pvs = data.prompt_versions || {};
+  document.getElementById('evalPromptVer').textContent =
+    `babok_check v${pvs.agent_babok_check || '?'} · reflection v${pvs.agent_reflection || '?'}`;
+ 
+  // Last run time
+  document.getElementById('evalLastRun').textContent =
+    `Last run: ${data.timestamp ? new Date(data.timestamp).toLocaleString() : '—'} · ID: ${data.run_id}`;
+ 
+  // Per-case table
+  const tbody = document.getElementById('evalCaseBody');
+  const cases = data.case_results || [];
+  tbody.innerHTML = '';
+  cases.forEach(c => {
+    if(c.error) {
+      tbody.innerHTML += `<tr>
+        <td>${c.case_id}</td>
+        <td style="color:var(--red);">${c.case_name} — ERROR: ${c.error}</td>
+        <td colspan="6"></td>
+      </tr>`;
+      return;
+    }
+    const scoreColor = c.score_in_range ? 'var(--green)' : 'var(--red)';
+    const hallOk = c.hallucination_detection_correct;
+    const hallColor = hallOk ? 'var(--green)' : 'var(--amber)';
+    tbody.innerHTML += `<tr>
+      <td>${c.case_id}</td>
+      <td style="font-size:12px;color:var(--ink3);max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"
+          title="${c.case_name}">${c.case_name}</td>
+      <td style="font-family:var(--mono);font-weight:600;color:${scoreColor};">${c.agent_score}</td>
+      <td style="font-family:var(--mono);font-size:11px;color:var(--ink4);">${c.expected_range}</td>
+      <td style="text-align:center;">${c.score_in_range ? '✅' : '❌'}</td>
+      <td style="font-family:var(--mono);font-size:11.5px;">${((c.f1||0)*100).toFixed(0)}%</td>
+      <td style="font-size:11px;color:${hallColor};">
+        ${hallOk ? '✅' : '⚠️'} ${(c.detected_hallucination_rate||0).toFixed(2)}
+      </td>
+      <td style="font-family:var(--mono);font-size:11px;color:var(--ink5);">${c.duration_seconds}s</td>
+    </tr>`;
+  });
+  document.getElementById('evalCaseCard').style.display = 'block';
+}
+ 
+async function runAbTest() {
+  const stageKey = document.getElementById('abStageKey').value;
+  const versionA = document.getElementById('abVersionA').value.trim();
+  const versionB = document.getElementById('abVersionB').value.trim();
+  const maxCases = parseInt(document.getElementById('abMaxCases').value) || 8;
+ 
+  if(!versionA || !versionB) {
+    return showStatus('abStatus', 'err', 'Enter both version A and version B');
+  }
+ 
+  showStatus('abStatus', 'load', '<span class="spin"></span> Running A/B baseline capture...');
+ 
+  try {
+    const res  = await fetch('/eval/ab-test', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        stage_key: stageKey,
+        version_a: versionA,
+        version_b: versionB,
+        max_cases: maxCases
+      })
+    });
+    const data = await res.json();
+ 
+    if(!res.ok) {
+      return showStatus('abStatus', 'err', data.detail || 'A/B test failed');
+    }
+ 
+    const va = data.version_a_results || {};
+    document.getElementById('abResults').innerHTML = `
+      <div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:14px;">
+        <div style="font-size:12px;font-weight:700;color:var(--ink1);margin-bottom:10px;">
+          Version A Baseline Captured — ${stageKey} v${versionA}
+        </div>
+        <div class="cost-bar-row" style="margin-bottom:6px;">
+          <div class="cbr-label">Avg Score</div>
+          <div class="cbr-track"><div class="cbr-fill" style="width:${va.avg_score||0}%;background:var(--blue);"></div></div>
+          <div class="cbr-value">${va.avg_score||0}</div>
+        </div>
+        <div class="cost-bar-row" style="margin-bottom:6px;">
+          <div class="cbr-label">Issue F1</div>
+          <div class="cbr-track"><div class="cbr-fill" style="width:${((va.f1||0)*100)}%;background:var(--purple);"></div></div>
+          <div class="cbr-value">${((va.f1||0)*100).toFixed(0)}%</div>
+        </div>
+        <div class="cost-bar-row">
+          <div class="cbr-label">Hall. Accuracy</div>
+          <div class="cbr-track"><div class="cbr-fill" style="width:${((va.hall_accuracy||0)*100)}%;background:var(--green);"></div></div>
+          <div class="cbr-value">${((va.hall_accuracy||0)*100).toFixed(0)}%</div>
+        </div>
+        <div style="margin-top:10px;font-size:11px;color:var(--amber);background:var(--amber-lt);border-radius:6px;padding:8px;">
+          💡 Now update prompts.json with version ${versionB} content and run again to compare.
+        </div>
+      </div>`;
+    showStatus('abStatus', 'ok', `✅ Version A baseline captured for ${stageKey} v${versionA}`);
+  } catch(e) {
+    showStatus('abStatus', 'err', 'Network error: ' + e.message);
+  }
+}
+ 
+async function checkHallucination() {
+  const sessionId = document.getElementById('hallSessionId').value.trim();
+  if(!sessionId) return showStatus('hallStatus', 'err', 'Enter a session ID');
+ 
+  showStatus('hallStatus', 'load', '<span class="spin"></span> Checking groundedness...');
+ 
+  try {
+    const res  = await fetch(`/sessions/${sessionId}/eval/hallucination`);
+    const data = await res.json();
+ 
+    if(!res.ok) {
+      return showStatus('hallStatus', 'err', data.detail || 'Check failed');
+    }
+ 
+    const rate    = data.hallucination_rate || 0;
+    const verdict = data.verdict || 'unknown';
+    const color   = verdict === 'clean' ? 'var(--green)' :
+                    verdict === 'mostly_grounded' ? 'var(--amber)' : 'var(--red)';
+ 
+    let html = `
+      <div style="display:flex;align-items:center;gap:14px;margin-bottom:12px;">
+        <div style="font-size:28px;font-weight:700;color:${color}">${(rate*100).toFixed(0)}%</div>
+        <div>
+          <div style="font-size:13px;font-weight:600;color:var(--ink1);">Hallucination Rate</div>
+          <div style="font-size:12px;color:${color};">${verdict}</div>
+        </div>
+      </div>`;
+ 
+    if(data.warning) {
+      html += `<div style="background:var(--amber-lt);border:1px solid #fde68a;border-radius:7px;padding:9px 12px;margin-bottom:12px;font-size:12.5px;color:var(--amber);">${data.warning}</div>`;
+    }
+ 
+    const perReq = data.per_requirement || {};
+    html += '<div>';
+    for(const [reqId, result] of Object.entries(perReq)) {
+      const vc = result.verdict === 'grounded' ? 'var(--green)' :
+                 result.verdict === 'partial' ? 'var(--amber)' : 'var(--red)';
+      html += `
+        <div style="display:flex;align-items:center;gap:8px;padding:7px 10px;background:var(--bg);border:1px solid var(--border);border-radius:6px;margin-bottom:5px;">
+          <span style="font-size:11px;font-weight:700;color:var(--blue);font-family:var(--mono);width:60px;">${reqId}</span>
+          <span style="font-size:11px;padding:2px 7px;border-radius:4px;background:${vc}18;color:${vc};border:1px solid ${vc};font-weight:600;">${result.verdict}</span>
+          <span style="font-size:11px;font-family:var(--mono);color:var(--ink5);">${(result.groundedness_score*100).toFixed(0)}%</span>
+          ${result.warning ? `<span style="font-size:11px;color:var(--amber);flex:1;">${result.warning}</span>` : ''}
+        </div>`;
+    }
+    html += '</div>';
+ 
+    document.getElementById('hallResults').innerHTML = html;
+    showStatus('hallStatus', 'ok', `✅ Check complete — source: ${data.source}`);
+  } catch(e) {
+    showStatus('hallStatus', 'err', 'Network error: ' + e.message);
+  }
+}
+ 
+// ═══════════════════════════════════════════════════════════
 // FEATURE 7 — Requirements Validation Agent
 // ═══════════════════════════════════════════════════════════
  
@@ -2213,6 +2420,14 @@ function discardBrdFixes() {
 // ═══════════════════════════════════════════════════════════
 // ADMIN TAB — Feature #5 Observability
 // ═══════════════════════════════════════════════════════════
+async function loadLatestEvalResults() {
+  try {
+    const res  = await fetch('/eval/results');
+    const data = await res.json();
+    if(data.run_id) renderEvalResults(data);
+  } catch(e) {}
+}
+ 
 async function loadAdminDashboard() {
   document.getElementById('adminLastRefresh').textContent = 'Refreshing...';
   await Promise.all([
@@ -2389,5 +2604,144 @@ async function loadAdminPrompts() {
 }
  
 </script>
+ 
+<!-- ═══════════════════════════════════════════════
+     TAB 6 — EVALUATION FRAMEWORK
+═══════════════════════════════════════════════ -->
+<div id="tab-eval" class="tab-content">
+ 
+  <div class="admin-refresh-bar">
+    <div>
+      <h2>🧪 Evaluation Framework</h2>
+      <small id="evalLastRun">No evaluation run yet</small>
+    </div>
+    <div class="btn-row" style="margin:0;">
+      <button class="btn btn-navy" onclick="runEval(false)">⚡ Quick Eval (Lexical)</button>
+      <button class="btn btn-gold" onclick="runEval(true)">🤖 Full Eval (LLM Judge)</button>
+    </div>
+  </div>
+ 
+  <div id="evalRunningBanner" style="display:none;" class="status load show" style="margin-bottom:16px;">
+    <span class="spin"></span> <span id="evalRunningMsg">Running evaluation...</span>
+  </div>
+ 
+  <!-- Score overview tiles -->
+  <div class="grid-4" style="margin-bottom:16px;" id="evalTiles" style="display:none;">
+    <div class="stat-tile">
+      <div class="st-icon">📊</div>
+      <div class="st-value" id="eval-score">—</div>
+      <div class="st-label">Avg Quality Score</div>
+      <div class="st-sub" id="eval-accuracy">— score accuracy</div>
+    </div>
+    <div class="stat-tile">
+      <div class="st-icon">🎯</div>
+      <div class="st-value" id="eval-f1">—</div>
+      <div class="st-label">Issue Detection F1</div>
+      <div class="st-sub" id="eval-precision-recall">P: — · R: —</div>
+    </div>
+    <div class="stat-tile">
+      <div class="st-icon">🔍</div>
+      <div class="st-value" id="eval-hall">—</div>
+      <div class="st-label">Hallucination Accuracy</div>
+      <div class="st-sub">Detection rate on golden cases</div>
+    </div>
+    <div class="stat-tile">
+      <div class="st-icon">💰</div>
+      <div class="st-value" id="eval-cost">—</div>
+      <div class="st-label">Eval Cost</div>
+      <div class="st-sub" id="eval-cases">— cases run</div>
+    </div>
+  </div>
+ 
+  <!-- Per-case results -->
+  <div class="card" id="evalCaseCard" style="display:none;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+      <div class="card-title" style="margin:0;">📋 Per-Case Results</div>
+      <span id="evalPromptVer" style="font-size:11px;color:var(--ink5);font-family:var(--mono);"></span>
+    </div>
+    <div style="overflow-x:auto;">
+      <table class="admin-table" id="evalCaseTable">
+        <thead>
+          <tr>
+            <th>Case ID</th>
+            <th>Name</th>
+            <th>Score</th>
+            <th>Expected Range</th>
+            <th>✓ Range</th>
+            <th>F1</th>
+            <th>Hallucination</th>
+            <th>Duration</th>
+          </tr>
+        </thead>
+        <tbody id="evalCaseBody"></tbody>
+      </table>
+    </div>
+  </div>
+ 
+  <!-- A/B Prompt Testing -->
+  <div class="card">
+    <div class="card-title">🔀 A/B Prompt Testing</div>
+    <p style="font-size:12px;color:var(--ink4);margin-bottom:14px;">
+      Capture baseline metrics for the current prompt version before deploying a new one.
+      Run Version A first, update prompts.json, then run Version B.
+    </p>
+    <div class="grid-2">
+      <div>
+        <div class="field">
+          <label>Stage Key</label>
+          <select id="abStageKey">
+            <option value="agent_babok_check">agent_babok_check</option>
+            <option value="agent_reflection">agent_reflection</option>
+            <option value="agent_brd_quality">agent_brd_quality</option>
+            <option value="requirements">requirements</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Version A (current / control)</label>
+          <input type="text" id="abVersionA" value="1.0.0" placeholder="e.g. 1.0.0">
+        </div>
+        <div class="field">
+          <label>Version B (challenger)</label>
+          <input type="text" id="abVersionB" placeholder="e.g. 1.1.0">
+        </div>
+        <div class="field">
+          <label>Max Cases</label>
+          <input type="number" id="abMaxCases" value="8" min="1" max="15">
+        </div>
+        <button class="btn btn-gold btn-full" onclick="runAbTest()">
+          🔀 Capture Version A Baseline
+        </button>
+      </div>
+      <div>
+        <div id="abResults" style="font-size:13px;color:var(--ink4);">
+          <div style="padding:20px;text-align:center;color:var(--ink5);">
+            Run Version A baseline first, then update prompts.json<br>
+            and run again to compare.
+          </div>
+        </div>
+      </div>
+    </div>
+    <div id="abStatus" class="status"></div>
+  </div>
+ 
+  <!-- Hallucination check for current session -->
+  <div class="card">
+    <div class="card-title">🔍 Session Hallucination Check</div>
+    <p style="font-size:12px;color:var(--ink4);margin-bottom:14px;">
+      Check groundedness of requirements in any session.
+      Identifies claims not supported by source context.
+    </p>
+    <div class="inline-row">
+      <div>
+        <input type="text" id="hallSessionId" placeholder="Session ID (e.g. 97137629)">
+      </div>
+      <button class="btn btn-gold" onclick="checkHallucination()">🔍 Check</button>
+    </div>
+    <div id="hallResults" style="margin-top:14px;"></div>
+    <div id="hallStatus" class="status"></div>
+  </div>
+ 
+</div><!-- end tab-eval -->
+ 
 </body>
 </html>

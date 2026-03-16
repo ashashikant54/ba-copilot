@@ -42,6 +42,7 @@ from openai import OpenAI
 from prompt_manager import get_prompt, get_model_config, estimate_cost, get_prompt_version
 from retriever import get_relevant_context, format_context_with_citations
 from session_manager import load_session, update_session
+from hallucination_detector import check_requirements_batch, format_qa_context
 from meeting_module import list_meetings, load_meeting
  
 load_dotenv()
@@ -195,9 +196,30 @@ def validate_requirements(session_id: str) -> dict:
         "confidence":             _score_to_confidence(final_score),
         "summary":                babok_result.get("summary", ""),
         "meeting_summary":        meeting_result.get("summary", ""),
+        # Hallucination detection (populated after session save below)
+        "hallucination_rate":     0.0,
+        "hallucination_verdict":  "pending",
+        "hallucination_warning":  None,
     }
  
     # ── Save to session ─────────────────────────────────────────
+    # ── Real-time hallucination detection ─────────────────────
+    # Runs lexical groundedness check on final requirements
+    # (after reflection improvements applied).
+    # Zero cost — pure Python, no GPT call.
+    session_for_hall = load_session(session_id)
+    qa_ctx = format_qa_context(session_for_hall)
+    hall_result = check_requirements_batch(
+        requirements=working_reqs,
+        kb_context=kb_context,
+        qa_context=qa_ctx
+    )
+ 
+    if hall_result["session_warning"]:
+        print(f"\n{hall_result['session_warning']}")
+    print(f"   Hallucination rate: {hall_result['hallucination_rate']:.3f} "
+          f"({hall_result['overall_verdict']})")
+ 
     prompt_ver = get_prompt_version("stages", "agent_babok_check")
     update_session(session_id, {
         "agent_validation_result":     result,
@@ -207,6 +229,11 @@ def validate_requirements(session_id: str) -> dict:
         "agent_tokens_in":             total_tokens_in,
         "agent_tokens_out":            total_tokens_out,
         "agent_cost_usd":              round(total_cost, 6),
+        # Hallucination detection results
+        "req_groundedness_scores":     hall_result["per_requirement"],
+        "req_hallucination_rate":      hall_result["hallucination_rate"],
+        "req_hallucination_verdict":   hall_result["overall_verdict"],
+        "req_hallucination_warning":   hall_result["session_warning"],
     })
  
     print(f"\n✅ Agent complete: score={final_score}, iterations={final_iteration}, "

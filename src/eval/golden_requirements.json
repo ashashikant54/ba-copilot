@@ -1,0 +1,535 @@
+{
+  "_meta": {
+    "version": "1.0.0",
+    "description": "Golden dataset for Requirements Validation Agent evaluation. Each test case has requirements with known quality issues and expected BABOK scores.",
+    "created": "2026-03-15",
+    "total_cases": 15
+  },
+  "test_cases": [
+    {
+      "id": "GR-001",
+      "name": "Clear high-quality requirements",
+      "description": "All requirements are specific, measurable, and testable. Expect high score.",
+      "expected_score_min": 80,
+      "expected_issues": [],
+      "requirements": [
+        {
+          "id": "REQ-001",
+          "type": "Functional",
+          "status": "accepted",
+          "text": "The system shall provision Email, Slack, and HRIS access within 2 hours of onboarding initiation for all new hires.",
+          "edited_text": "",
+          "rationale": "Eliminates day-1 access delays",
+          "source": "Gap answer",
+          "confidence": "High"
+        },
+        {
+          "id": "REQ-002",
+          "type": "Non-Functional",
+          "status": "accepted",
+          "text": "The system shall support a minimum of 50 concurrent onboarding workflows without performance degradation.",
+          "edited_text": "",
+          "rationale": "Handles peak monthly hire volume",
+          "source": "Clarification answer",
+          "confidence": "High"
+        },
+        {
+          "id": "REQ-003",
+          "type": "Integration",
+          "status": "accepted",
+          "text": "The system shall integrate with Workday HRIS via REST API v3.2 to retrieve new hire records within 15 minutes of HR approval.",
+          "edited_text": "",
+          "rationale": "Automates data flow from HR to IT provisioning",
+          "source": "Knowledge base",
+          "confidence": "High"
+        }
+      ],
+      "kb_context": "Current onboarding takes 14 days. HR uses Workday HRIS. IT provisions via ServiceNow. Target is 2 hours for system access.",
+      "expected_hallucination_rate": 0
+    },
+    {
+      "id": "GR-002",
+      "name": "Testability failures — vague performance terms",
+      "description": "Requirements use unmeasurable terms. Expect testability dimension to fail.",
+      "expected_score_min": 40,
+      "expected_score_max": 65,
+      "expected_issues": [
+        "testability"
+      ],
+      "requirements": [
+        {
+          "id": "REQ-001",
+          "type": "Non-Functional",
+          "status": "accepted",
+          "text": "The system shall respond quickly to all user requests.",
+          "edited_text": "",
+          "rationale": "Performance requirement",
+          "source": "Clarification answer",
+          "confidence": "Medium"
+        },
+        {
+          "id": "REQ-002",
+          "type": "Non-Functional",
+          "status": "accepted",
+          "text": "The system shall be highly available and scalable.",
+          "edited_text": "",
+          "rationale": "Reliability requirement",
+          "source": "Gap answer",
+          "confidence": "Medium"
+        },
+        {
+          "id": "REQ-003",
+          "type": "Functional",
+          "status": "accepted",
+          "text": "The system shall provide appropriate access to users in a timely manner.",
+          "edited_text": "",
+          "rationale": "Access management",
+          "source": "Knowledge base",
+          "confidence": "Low"
+        }
+      ],
+      "kb_context": "Current system has no SLA defined. Access provisioning is manual.",
+      "expected_hallucination_rate": 0,
+      "expected_issues_detail": [
+        "REQ-001: 'quickly' is not measurable — needs a numeric threshold",
+        "REQ-002: 'highly available' and 'scalable' need numeric targets",
+        "REQ-003: 'appropriate' and 'timely' are undefined"
+      ]
+    },
+    {
+      "id": "GR-003",
+      "name": "Ambiguity failures — conditional language",
+      "description": "Requirements use 'should', 'may', 'might'. Expect unambiguity dimension to fail.",
+      "expected_score_min": 45,
+      "expected_score_max": 65,
+      "expected_issues": [
+        "unambiguity"
+      ],
+      "requirements": [
+        {
+          "id": "REQ-001",
+          "type": "Functional",
+          "status": "accepted",
+          "text": "The system should send notification emails to new hires when access is provisioned.",
+          "edited_text": "",
+          "rationale": "User communication",
+          "source": "Gap answer",
+          "confidence": "Medium"
+        },
+        {
+          "id": "REQ-002",
+          "type": "Functional",
+          "status": "accepted",
+          "text": "The system may support bulk onboarding for multiple hires simultaneously.",
+          "edited_text": "",
+          "rationale": "Batch processing capability",
+          "source": "Clarification answer",
+          "confidence": "Low"
+        }
+      ],
+      "kb_context": "Onboarding notifications are currently done manually via email.",
+      "expected_hallucination_rate": 0
+    },
+    {
+      "id": "GR-004",
+      "name": "Atomicity failure — bundled requirements",
+      "description": "Single requirement covers multiple distinct capabilities. Expect atomicity to fail.",
+      "expected_score_min": 45,
+      "expected_score_max": 65,
+      "expected_issues": [
+        "atomicity"
+      ],
+      "requirements": [
+        {
+          "id": "REQ-001",
+          "type": "Functional",
+          "status": "accepted",
+          "text": "The system shall automate onboarding workflows, provision access to Email, Slack, HRIS and VPN, send notifications to new hires and managers, generate audit reports, and support rollback in case of provisioning failure.",
+          "edited_text": "",
+          "rationale": "Complete onboarding automation",
+          "source": "Knowledge base",
+          "confidence": "High"
+        }
+      ],
+      "kb_context": "Full onboarding process includes access provisioning, notifications, and audit trails.",
+      "expected_hallucination_rate": 0
+    },
+    {
+      "id": "GR-005",
+      "name": "Hallucination — invented SLA not in context",
+      "description": "Requirement contains a specific number not present in KB context or Q&A. Expect hallucination flag.",
+      "expected_score_min": 55,
+      "expected_score_max": 80,
+      "expected_issues": [
+        "hallucination"
+      ],
+      "requirements": [
+        {
+          "id": "REQ-001",
+          "type": "Non-Functional",
+          "status": "accepted",
+          "text": "The system shall achieve 99.99% uptime with a maximum planned downtime of 4 hours per year.",
+          "edited_text": "",
+          "rationale": "Reliability requirement",
+          "source": "Knowledge base",
+          "confidence": "High"
+        },
+        {
+          "id": "REQ-002",
+          "type": "Functional",
+          "status": "accepted",
+          "text": "The system shall process onboarding requests within 30 minutes during business hours.",
+          "edited_text": "",
+          "rationale": "Processing time requirement",
+          "source": "Gap answer",
+          "confidence": "Medium"
+        }
+      ],
+      "kb_context": "Current system has no SLA. HR wants faster processing but no specific number was given.",
+      "expected_hallucination_rate": 0.5,
+      "hallucination_details": [
+        "REQ-001: 99.99% uptime and 4 hours/year not mentioned anywhere in context",
+        "REQ-002: 30 minutes not mentioned in KB context or any Q&A answer"
+      ]
+    },
+    {
+      "id": "GR-006",
+      "name": "Completeness failure — missing exception handling",
+      "description": "Requirements describe happy path only. No error handling, rollback, or edge cases.",
+      "expected_score_min": 50,
+      "expected_score_max": 70,
+      "expected_issues": [
+        "completeness"
+      ],
+      "requirements": [
+        {
+          "id": "REQ-001",
+          "type": "Functional",
+          "status": "accepted",
+          "text": "The system shall create user accounts in Active Directory when a new hire record is received from HRIS.",
+          "edited_text": "",
+          "rationale": "Account creation automation",
+          "source": "Knowledge base",
+          "confidence": "High"
+        },
+        {
+          "id": "REQ-002",
+          "type": "Integration",
+          "status": "accepted",
+          "text": "The system shall sync employee data from HRIS to Active Directory every 15 minutes.",
+          "edited_text": "",
+          "rationale": "Data synchronisation",
+          "source": "Knowledge base",
+          "confidence": "High"
+        }
+      ],
+      "kb_context": "HRIS is Workday. Active Directory is used for SSO. Sync failures have caused issues in the past.",
+      "expected_hallucination_rate": 0,
+      "expected_issues_detail": [
+        "No requirement for what happens when HRIS is unavailable",
+        "No requirement for handling duplicate employee records",
+        "No requirement for rollback if AD account creation fails"
+      ]
+    },
+    {
+      "id": "GR-007",
+      "name": "Consistency failure — conflicting requirements",
+      "description": "Two requirements contradict each other on the same system behaviour.",
+      "expected_score_min": 40,
+      "expected_score_max": 60,
+      "expected_issues": [
+        "consistency"
+      ],
+      "requirements": [
+        {
+          "id": "REQ-001",
+          "type": "Non-Functional",
+          "status": "accepted",
+          "text": "The system shall retain all onboarding audit logs for a minimum of 7 years.",
+          "edited_text": "",
+          "rationale": "Compliance requirement",
+          "source": "Gap answer",
+          "confidence": "High"
+        },
+        {
+          "id": "REQ-002",
+          "type": "Data",
+          "status": "accepted",
+          "text": "The system shall automatically purge all employee onboarding data after 90 days of the onboarding completion date.",
+          "edited_text": "",
+          "rationale": "Data privacy requirement",
+          "source": "Clarification answer",
+          "confidence": "High"
+        }
+      ],
+      "kb_context": "Company has GDPR obligations and also SOX audit requirements.",
+      "expected_hallucination_rate": 0
+    },
+    {
+      "id": "GR-008",
+      "name": "Mixed quality — some good, some bad",
+      "description": "Realistic case with 2 good requirements and 2 problematic ones. Expect mid-range score.",
+      "expected_score_min": 55,
+      "expected_score_max": 75,
+      "expected_issues": [
+        "testability",
+        "ambiguity"
+      ],
+      "requirements": [
+        {
+          "id": "REQ-001",
+          "type": "Functional",
+          "status": "accepted",
+          "text": "The system shall send an automated welcome email to new hires within 10 minutes of HRIS record creation.",
+          "edited_text": "",
+          "rationale": "First touchpoint communication",
+          "source": "Knowledge base",
+          "confidence": "High"
+        },
+        {
+          "id": "REQ-002",
+          "type": "Integration",
+          "status": "accepted",
+          "text": "The system shall integrate with Microsoft Teams to automatically create a channel for each new hire's onboarding cohort.",
+          "edited_text": "",
+          "rationale": "Collaboration setup",
+          "source": "Gap answer",
+          "confidence": "High"
+        },
+        {
+          "id": "REQ-003",
+          "type": "Non-Functional",
+          "status": "accepted",
+          "text": "The system shall perform well under load.",
+          "edited_text": "",
+          "rationale": "Performance",
+          "source": "Clarification answer",
+          "confidence": "Low"
+        },
+        {
+          "id": "REQ-004",
+          "type": "Functional",
+          "status": "accepted",
+          "text": "The system should handle errors gracefully.",
+          "edited_text": "",
+          "rationale": "Error handling",
+          "source": "Gap answer",
+          "confidence": "Low"
+        }
+      ],
+      "kb_context": "Microsoft Teams is used company-wide. Current error handling is non-existent. No performance benchmarks exist.",
+      "expected_hallucination_rate": 0
+    },
+    {
+      "id": "GR-009",
+      "name": "Hallucination — invented system name",
+      "description": "Requirement references a system not mentioned anywhere in context.",
+      "expected_score_min": 50,
+      "expected_score_max": 75,
+      "expected_issues": [
+        "hallucination"
+      ],
+      "requirements": [
+        {
+          "id": "REQ-001",
+          "type": "Integration",
+          "status": "accepted",
+          "text": "The system shall integrate with SAP SuccessFactors to retrieve payroll information for new hires.",
+          "edited_text": "",
+          "rationale": "Payroll integration",
+          "source": "Knowledge base",
+          "confidence": "High"
+        }
+      ],
+      "kb_context": "HR uses Workday for all HR processes. Payroll is handled by ADP. No mention of SAP anywhere.",
+      "expected_hallucination_rate": 1,
+      "hallucination_details": [
+        "REQ-001: 'SAP SuccessFactors' not mentioned in any context — system uses Workday and ADP"
+      ]
+    },
+    {
+      "id": "GR-010",
+      "name": "Edited requirements — BA improved quality",
+      "description": "BA has edited vague requirements with improved text. Edited text should be evaluated, not original.",
+      "expected_score_min": 75,
+      "expected_score_max": 95,
+      "expected_issues": [],
+      "requirements": [
+        {
+          "id": "REQ-001",
+          "type": "Non-Functional",
+          "status": "edited",
+          "text": "The system shall respond quickly.",
+          "edited_text": "The system shall respond to all user-initiated actions within 3 seconds at p95 under normal load (up to 200 concurrent users).",
+          "rationale": "Performance requirement with measurable threshold",
+          "source": "Clarification answer",
+          "confidence": "High"
+        },
+        {
+          "id": "REQ-002",
+          "type": "Functional",
+          "status": "edited",
+          "text": "The system should handle errors.",
+          "edited_text": "The system shall display a user-friendly error message and log the failure to the audit trail within 5 seconds when any provisioning step fails.",
+          "rationale": "Error handling with specific behaviour",
+          "source": "Gap answer",
+          "confidence": "High"
+        }
+      ],
+      "kb_context": "Current system has no error handling. P95 response time target of 3 seconds was agreed in the design meeting.",
+      "expected_hallucination_rate": 0
+    },
+    {
+      "id": "GR-011",
+      "name": "Data requirements — missing constraints",
+      "description": "Data requirements lack format, validation, and retention rules.",
+      "expected_score_min": 45,
+      "expected_score_max": 65,
+      "expected_issues": [
+        "completeness"
+      ],
+      "requirements": [
+        {
+          "id": "REQ-001",
+          "type": "Data",
+          "status": "accepted",
+          "text": "The system shall capture employee onboarding data.",
+          "edited_text": "",
+          "rationale": "Data capture requirement",
+          "source": "Knowledge base",
+          "confidence": "Medium"
+        },
+        {
+          "id": "REQ-002",
+          "type": "Data",
+          "status": "accepted",
+          "text": "The system shall store audit logs of all provisioning actions.",
+          "edited_text": "",
+          "rationale": "Audit trail requirement",
+          "source": "Gap answer",
+          "confidence": "Medium"
+        }
+      ],
+      "kb_context": "Employee data includes name, email, start date, department, manager. Audit logs needed for SOX compliance.",
+      "expected_hallucination_rate": 0
+    },
+    {
+      "id": "GR-012",
+      "name": "Process requirements — no business rules",
+      "description": "Process requirements describe workflow steps but no business rules or conditions.",
+      "expected_score_min": 50,
+      "expected_score_max": 70,
+      "expected_issues": [
+        "completeness"
+      ],
+      "requirements": [
+        {
+          "id": "REQ-001",
+          "type": "Process",
+          "status": "accepted",
+          "text": "The system shall follow the onboarding approval workflow.",
+          "edited_text": "",
+          "rationale": "Workflow compliance",
+          "source": "Knowledge base",
+          "confidence": "Low"
+        }
+      ],
+      "kb_context": "Onboarding requires manager approval, then HR approval, then IT provisioning. Contractors have a different workflow than full-time employees.",
+      "expected_hallucination_rate": 0
+    },
+    {
+      "id": "GR-013",
+      "name": "Security requirements — compliance without specifics",
+      "description": "Mentions compliance but no specific controls.",
+      "expected_score_min": 45,
+      "expected_score_max": 65,
+      "expected_issues": [
+        "completeness",
+        "testability"
+      ],
+      "requirements": [
+        {
+          "id": "REQ-001",
+          "type": "Non-Functional",
+          "status": "accepted",
+          "text": "The system shall be secure and compliant with all relevant regulations.",
+          "edited_text": "",
+          "rationale": "Security and compliance",
+          "source": "Gap answer",
+          "confidence": "Medium"
+        }
+      ],
+      "kb_context": "Company must comply with SOX, GDPR, and internal data governance policies. MFA is required for all admin access.",
+      "expected_hallucination_rate": 0
+    },
+    {
+      "id": "GR-014",
+      "name": "Well-scoped integration requirements",
+      "description": "Integration requirements with clear APIs, data formats, and error handling.",
+      "expected_score_min": 82,
+      "expected_score_max": 100,
+      "expected_issues": [],
+      "requirements": [
+        {
+          "id": "REQ-001",
+          "type": "Integration",
+          "status": "accepted",
+          "text": "The system shall call the ServiceNow REST API (v2) to create IT provisioning tickets within 5 minutes of HR onboarding approval, including employee ID, required access list, and start date in JSON format.",
+          "edited_text": "",
+          "rationale": "Automated IT ticket creation",
+          "source": "Knowledge base",
+          "confidence": "High"
+        },
+        {
+          "id": "REQ-002",
+          "type": "Integration",
+          "status": "accepted",
+          "text": "The system shall retry failed API calls to ServiceNow up to 3 times with exponential backoff (1s, 2s, 4s) before raising an alert to the IT Operations team.",
+          "edited_text": "",
+          "rationale": "Resilient integration handling",
+          "source": "Gap answer",
+          "confidence": "High"
+        }
+      ],
+      "kb_context": "ServiceNow REST API v2 is the standard for IT ticket creation. Exponential backoff is the agreed retry strategy.",
+      "expected_hallucination_rate": 0
+    },
+    {
+      "id": "GR-015",
+      "name": "All dimensions failing",
+      "description": "Deliberately poor requirements across all BABOK dimensions. Expect very low score.",
+      "expected_score_min": 0,
+      "expected_score_max": 40,
+      "expected_issues": [
+        "testability",
+        "unambiguity",
+        "atomicity",
+        "completeness"
+      ],
+      "requirements": [
+        {
+          "id": "REQ-001",
+          "type": "Functional",
+          "status": "accepted",
+          "text": "The system should be good and work properly for all users as needed.",
+          "edited_text": "",
+          "rationale": "General system behaviour",
+          "source": "Clarification answer",
+          "confidence": "Low"
+        },
+        {
+          "id": "REQ-002",
+          "type": "Non-Functional",
+          "status": "accepted",
+          "text": "The system may need to handle various situations appropriately and efficiently.",
+          "edited_text": "",
+          "rationale": "Performance and reliability",
+          "source": "Gap answer",
+          "confidence": "Low"
+        }
+      ],
+      "kb_context": "No specific requirements were documented. General feedback was that the system should improve onboarding.",
+      "expected_hallucination_rate": 0
+    }
+  ]
+}

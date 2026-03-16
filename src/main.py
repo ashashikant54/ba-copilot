@@ -31,6 +31,8 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 # setup_telemetry() is called in the lifespan function below.
 from telemetry import setup_telemetry
  
+
+ 
 from session_manager import (
     create_session, load_session, list_sessions,
     delete_session, get_session_summary, revert_session
@@ -54,6 +56,8 @@ from requirements_module import (
 from requirements_agent import validate_requirements
 from brd_review_agent import review_brd
 from lg_coordinator import lg_validate_requirements, lg_review_brd, lg_run_both_agents
+from eval_runner import run_evaluation, run_ab_test, get_latest_results
+from hallucination_detector import check_requirements_batch, format_qa_context
 from brd_module import (
     generate_brd_preview, approve_brd, regenerate_brd
 )
@@ -774,6 +778,109 @@ def api_admin_prompt_versions():
     """Which prompt versions are in use across recent sessions + meetings."""
     try:
         return get_prompt_versions()
+    except Exception as e:
+        raise HTTPException(500, str(e))
+ 
+ 
+# ══════════════════════════════════════════════════════════════
+# EVALUATION FRAMEWORK — Feature 9
+# ══════════════════════════════════════════════════════════════
+ 
+class ABTestRequest(BaseModel):
+    stage_key: str
+    version_a: str
+    version_b: str
+    max_cases: int = 8
+ 
+ 
+@app.post("/eval/run")
+def api_run_evaluation(use_llm_judge: bool = False, max_cases: Optional[int] = None):
+    """
+    Run offline evaluation against the golden requirements dataset.
+    use_llm_judge=True adds LLM-as-Judge groundedness check (costs tokens).
+    use_llm_judge=False uses lexical overlap only (free, faster).
+    """
+    try:
+        result = run_evaluation(use_llm_judge=use_llm_judge, max_cases=max_cases)
+        return result
+    except Exception as e:
+        raise HTTPException(500, str(e))
+ 
+ 
+@app.post("/eval/ab-test")
+def api_run_ab_test(req: ABTestRequest):
+    """
+    Capture baseline metrics for A/B prompt version comparison.
+    Run with version_a first, update prompts.json, run again with version_b.
+    """
+    try:
+        result = run_ab_test(
+            stage_key=req.stage_key,
+            version_a=req.version_a,
+            version_b=req.version_b,
+            max_cases=req.max_cases
+        )
+        return result
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    except Exception as e:
+        raise HTTPException(500, str(e))
+ 
+ 
+@app.get("/eval/results")
+def api_get_eval_results():
+    """Return the most recent evaluation results from disk."""
+    try:
+        results = get_latest_results()
+        if not results:
+            return {"message": "No evaluation results yet. Run POST /eval/run first."}
+        return results
+    except Exception as e:
+        raise HTTPException(500, str(e))
+ 
+ 
+@app.get("/sessions/{session_id}/eval/hallucination")
+def api_get_hallucination_scores(session_id: str):
+    """
+    Return groundedness scores for all requirements in a session.
+    Shows which requirements may contain unsupported claims.
+    """
+    try:
+        session = load_session(session_id)
+        stored = session.get("req_groundedness_scores")
+        if stored:
+            return {
+                "session_id":         session_id,
+                "hallucination_rate": session.get("req_hallucination_rate", 0),
+                "verdict":            session.get("req_hallucination_verdict", "unknown"),
+                "warning":            session.get("req_hallucination_warning"),
+                "per_requirement":    stored,
+                "source":             "stored"
+            }
+        # Run on-demand if not stored
+        requirements = session.get("requirements", [])
+        if not requirements:
+            raise HTTPException(400, "No requirements found in session")
+        from retriever import get_relevant_context, format_context_with_citations
+        problem = session.get("problem_refined") or session.get("problem_raw", "")
+        results = get_relevant_context(problem, top_k=5,
+                                       system_name=session.get("system_filter"),
+                                       source_type=session.get("source_filter"))
+        kb_ctx = ""
+        if results:
+            kb_ctx, _ = format_context_with_citations(results)
+        qa_ctx = format_qa_context(session)
+        hall_result = check_requirements_batch(requirements, kb_ctx, qa_ctx)
+        return {
+            "session_id":         session_id,
+            "hallucination_rate": hall_result["hallucination_rate"],
+            "verdict":            hall_result["overall_verdict"],
+            "warning":            hall_result["session_warning"],
+            "per_requirement":    hall_result["per_requirement"],
+            "source":             "computed"
+        }
+    except FileNotFoundError:
+        raise HTTPException(404, f"Session '{session_id}' not found")
     except Exception as e:
         raise HTTPException(500, str(e))
  
