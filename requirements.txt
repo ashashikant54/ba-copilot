@@ -132,6 +132,4 @@ xxhash==3.6.0
 yarl==1.22.0
 zipp==3.23.0
 zstandard==0.25.0
-azure-monitor-opentelemetry-exporter>=1.0.0b28
-opentelemetry-instrumentation-fastapi>=0.60b0
-opentelemetry-instrumentation-httpx>=0.60b0
+redis>=5.0.0

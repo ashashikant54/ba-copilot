@@ -23,15 +23,13 @@ from typing import Optional
  
 from dotenv import load_dotenv
 load_dotenv()
-
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-
-# ── OpenTelemetry setup ────────────────────────────────────────
-# Import telemetry early — before FastAPI app is created.
-# setup_telemetry() is called in the lifespan function below.
-from telemetry import setup_telemetry
  
-
+# ── CRITICAL: sys.path must come before ANY src/ module imports ──
+# telemetry, semantic_cache, and all other src/ modules require this.
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+ 
+# ── OpenTelemetry setup ────────────────────────────────────────
+from telemetry import setup_telemetry
  
 from session_manager import (
     create_session, load_session, list_sessions,
@@ -57,6 +55,7 @@ from requirements_agent import validate_requirements
 from brd_review_agent import review_brd
 from lg_coordinator import lg_validate_requirements, lg_review_brd, lg_run_both_agents
 from eval_runner import run_evaluation, run_ab_test, get_latest_results
+from semantic_cache import get_cache_stats, clear_cache
 from hallucination_detector import check_requirements_batch, format_qa_context
 from brd_module import (
     generate_brd_preview, approve_brd, regenerate_brd
@@ -203,7 +202,8 @@ def api_generate_questions(session_id: str):
         questions = generate_clarifying_questions(session_id)
         return {"questions": questions}
     except Exception as e:
-        raise HTTPException(500, str(e))
+        print(f"Admin /admin/costs/by-stage error: {e}")
+        return {"error": str(e), "items": [], "data": []}
  
  
 @app.post("/sessions/{session_id}/clarify/answers")
@@ -212,7 +212,8 @@ def api_save_answers(session_id: str, req: AnswersRequest):
         save_answers(session_id, req.answers)
         return {"success": True}
     except Exception as e:
-        raise HTTPException(500, str(e))
+        print(f"Admin /admin/kb/breakdown error: {e}")
+        return {"error": str(e), "items": [], "data": []}
  
  
 @app.post("/sessions/{session_id}/clarify/refine")
@@ -221,7 +222,8 @@ def api_refine_problem(session_id: str):
         refined = refine_problem_statement(session_id)
         return {"problem_refined": refined}
     except Exception as e:
-        raise HTTPException(500, str(e))
+        print(f"Admin /admin/costs/by-session error: {e}")
+        return {"error": str(e), "items": [], "data": []}
  
  
 @app.post("/sessions/{session_id}/clarify/approve")
@@ -246,7 +248,8 @@ def api_run_analysis(session_id: str):
         analysis = run_analysis(session_id)
         return analysis
     except Exception as e:
-        raise HTTPException(500, str(e))
+        print(f"Admin /admin/prompts/versions error: {e}")
+        return {"error": str(e), "items": [], "data": []}
  
  
 @app.post("/sessions/{session_id}/analyse/graph")
@@ -743,7 +746,15 @@ def api_admin_overview():
     try:
         return get_platform_overview()
     except Exception as e:
-        raise HTTPException(500, str(e))
+        # Return partial data rather than crashing to HTML
+        print(f"Admin overview error: {e}")
+        return {
+            "total_sessions": 0,
+            "total_meetings": 0,
+            "kb_documents": 0,
+            "cumulative_cost_usd": 0.0,
+            "error": str(e)
+        }
  
  
 @app.get("/admin/costs/by-stage")
@@ -883,6 +894,29 @@ def api_get_hallucination_scores(session_id: str):
         raise HTTPException(404, f"Session '{session_id}' not found")
     except Exception as e:
         raise HTTPException(500, str(e))
+ 
+ 
+# ══════════════════════════════════════════════════════════════
+# SEMANTIC CACHE — Stats and management
+# ══════════════════════════════════════════════════════════════
+ 
+@app.get("/cache/stats")
+def api_cache_stats():
+    """
+    Return live cache statistics for the Admin dashboard.
+    Shows hit rate, cost saved, cached entries, threshold.
+    """
+    return get_cache_stats()
+ 
+ 
+@app.delete("/cache")
+def api_clear_cache():
+    """
+    Clear all cached BABOK results.
+    Call this after a significant prompt version change to
+    prevent stale cached results from being returned.
+    """
+    return clear_cache()
  
  
 # ── Health ─────────────────────────────────────────────────────

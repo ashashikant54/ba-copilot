@@ -138,7 +138,7 @@ def run_evaluation(
     print(f"{'='*60}")
  
     # Load golden dataset
-    with open(GOLDEN_REQS_FILE, encoding='utf-8') as f:
+    with open(GOLDEN_REQS_FILE) as f:
         golden = json.load(f)
  
     test_cases = golden["test_cases"]
@@ -173,10 +173,23 @@ def run_evaluation(
             "source_filter": None,
         }
  
+        # Fix: build effective_text for each requirement
+        # This mirrors what initialise_node does in the LangGraph agent.
+        # Without this, edited requirements get evaluated on their original
+        # vague text instead of the BA-improved text (GR-010 bug).
+        eval_reqs = []
+        for req in case["requirements"]:
+            r = dict(req)
+            r["effective_text"] = (
+                r["edited_text"] if r.get("edited_text")
+                else r.get("text", "")
+            )
+            eval_reqs.append(r)
+ 
         # Run BABOK check (Tool 2 from requirements agent)
         try:
             babok_result, t_in, t_out, cost = _tool_babok_check(
-                requirements=case["requirements"],
+                requirements=eval_reqs,
                 kb_context=case.get("kb_context", ""),
                 session=mock_session,
                 iteration=1,
@@ -185,6 +198,13 @@ def run_evaluation(
             total_cost += cost
             agent_score = babok_result.get("overall_quality_score", 0)
             print(f"   Agent score: {agent_score}/100")
+ 
+            # Guard: if babok_result is a string (parse failure), skip gracefully
+            if not isinstance(babok_result, dict):
+                print(f"   ⚠️  Non-dict babok_result for {case['id']} — skipping")
+                case_result["error"] = "babok_result was not a dict (JSON parse failure)"
+                results.append(case_result)
+                continue
  
             # Score accuracy check
             score_min = case.get("expected_score_min", 0)
@@ -243,7 +263,7 @@ def run_evaluation(
         # Hallucination detection check
         expected_hall_rate = case.get("expected_hallucination_rate", 0.0)
         hall_result = check_requirements_batch(
-            requirements=case["requirements"],
+            requirements=eval_reqs,
             kb_context=case.get("kb_context", ""),
             qa_context=""
         )
@@ -356,7 +376,7 @@ def run_evaluation(
  
     # Save results
     os.makedirs(GOLDEN_DIR, exist_ok=True)
-    with open(RESULTS_FILE, "w", encoding='utf-8') as f:
+    with open(RESULTS_FILE, "w") as f:
         json.dump(report, f, indent=2)
  
     _print_summary(report)
@@ -403,7 +423,7 @@ def run_ab_test(
     prompts_path = os.path.join(
         os.path.dirname(os.path.abspath(__file__)), "prompts.json"
     )
-    with open(prompts_path, encoding='utf-8') as f:
+    with open(prompts_path) as f:
         prompts_data = json.load(f)
  
     if stage_key not in prompts_data.get("stages", {}):
@@ -475,7 +495,7 @@ def get_latest_results() -> Optional[dict]:
     """Load the most recent eval results from disk."""
     if not os.path.exists(RESULTS_FILE):
         return None
-    with open(RESULTS_FILE, encoding='utf-8') as f:
+    with open(RESULTS_FILE) as f:
         return json.load(f)
  
  

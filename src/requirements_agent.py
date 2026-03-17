@@ -42,6 +42,7 @@ from openai import OpenAI
 from prompt_manager import get_prompt, get_model_config, estimate_cost, get_prompt_version
 from retriever import get_relevant_context, format_context_with_citations
 from session_manager import load_session, update_session
+from semantic_cache import cache_lookup, cache_store
 from hallucination_detector import check_requirements_batch, format_qa_context
 from meeting_module import list_meetings, load_meeting
  
@@ -97,6 +98,7 @@ def validate_requirements(session_id: str) -> dict:
     total_tokens_in  = 0
     total_tokens_out = 0
     total_cost       = 0.0
+    cache_hit_result = None
  
     # ── Tool 1: KB Search (Python only — no GPT call) ──────────
     print(f"\n🔧 Tool 1: Searching knowledge base...")
@@ -122,6 +124,18 @@ def validate_requirements(session_id: str) -> dict:
  
     for iteration in range(1, MAX_ITERATIONS + 1):
         final_iteration = iteration
+ 
+        # ── Semantic cache (iteration 1 only) ──────────────────
+        if iteration == 1:
+            cache_hit_result = cache_lookup(current_reqs, session_id)
+        if cache_hit_result is not None:
+            babok_result = cache_hit_result
+            t_in, t_out, cost = 0, 0, 0.0
+            quality_score = babok_result.get("overall_quality_score", 0)
+            print(f"   🎯 Cache HIT — score={quality_score}, skipping GPT call")
+            final_iteration = iteration
+            break
+ 
         print(f"\n🔧 Tool 2: BABOK quality check (iteration {iteration}/{MAX_ITERATIONS})...")
  
         babok_result, t_in, t_out, cost = _tool_babok_check(
@@ -187,6 +201,7 @@ def validate_requirements(session_id: str) -> dict:
     result = {
         "quality_score":          final_score,
         "passed":                 final_score >= QUALITY_THRESHOLD,
+        "cache_hit":              cache_hit_result is not None,
         "iterations":             final_iteration,
         "requirement_scores":     babok_result.get("requirement_scores", []),
         "meeting_conflicts":      meeting_result.get("conflicts", []),
@@ -203,6 +218,20 @@ def validate_requirements(session_id: str) -> dict:
     }
  
     # ── Save to session ─────────────────────────────────────────
+    # ── Store in cache after successful GPT call ──────────────
+    if cache_hit_result is None:
+        try:
+            cache_store(
+                requirements=working_reqs,
+                babok_result=babok_result,
+                session_id=session_id,
+                tokens_in=total_tokens_in,
+                tokens_out=total_tokens_out,
+                cost_usd=total_cost,
+            )
+        except Exception as _ce:
+            print(f"   ⚠️  Cache store skipped: {_ce}")
+ 
     # ── Real-time hallucination detection ─────────────────────
     # Runs lexical groundedness check on final requirements
     # (after reflection improvements applied).
@@ -538,14 +567,32 @@ def _score_to_confidence(score: int) -> str:
  
  
 def _safe_parse_json(raw: str, default: dict) -> dict:
-    """Parse JSON from GPT response, stripping markdown fences if present."""
+    """
+    Parse JSON from LLM response. ALWAYS returns a dict — never a string.
+    Handles markdown fences, partial JSON, and unexpected return types.
+    """
+    if not isinstance(raw, str):
+        print(f"   ⚠️  _safe_parse_json got non-string: {type(raw)}")
+        return default
     try:
-        text = raw
+        text = raw.strip()
         if "```" in text:
-            text = text.split("```")[1]
-            if text.startswith("json"):
-                text = text[4:]
-        return json.loads(text.strip())
+            parts = text.split("```")
+            for part in parts[1::2]:
+                part = part.strip()
+                if part.startswith("json"):
+                    part = part[4:].strip()
+                try:
+                    result = json.loads(part)
+                    if isinstance(result, dict):
+                        return result
+                except Exception:
+                    continue
+        result = json.loads(text)
+        if isinstance(result, dict):
+            return result
+        print(f"   ⚠️  JSON parsed but not a dict: {type(result)}")
+        return default
     except Exception as e:
-        print(f"   ⚠️  JSON parse error: {e}")
+        print(f"   ⚠️  JSON parse error: {e} | raw[:100]: {raw[:100]}")
         return default

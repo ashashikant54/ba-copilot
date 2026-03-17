@@ -598,13 +598,32 @@ def _score_to_confidence(score: int) -> str:
  
  
 def _safe_parse_json(raw: str, default: dict) -> dict:
+    """
+    Parse JSON from LLM response. ALWAYS returns a dict — never a string.
+    Handles markdown fences, partial JSON, and unexpected return types.
+    """
+    if not isinstance(raw, str):
+        print(f"   ⚠️  _safe_parse_json got non-string: {type(raw)}")
+        return default
     try:
-        text = raw
+        text = raw.strip()
         if "```" in text:
-            text = text.split("```")[1]
-            if text.startswith("json"):
-                text = text[4:]
-        return json.loads(text.strip())
+            parts = text.split("```")
+            for part in parts[1::2]:
+                part = part.strip()
+                if part.startswith("json"):
+                    part = part[4:].strip()
+                try:
+                    result = json.loads(part)
+                    if isinstance(result, dict):
+                        return result
+                except Exception:
+                    continue
+        result = json.loads(text)
+        if isinstance(result, dict):
+            return result
+        print(f"   ⚠️  JSON parsed but not a dict: {type(result)}")
+        return default
     except Exception as e:
-        print(f"   ⚠️  JSON parse error: {e}")
+        print(f"   ⚠️  JSON parse error: {e} | raw[:100]: {raw[:100]}")
         return default

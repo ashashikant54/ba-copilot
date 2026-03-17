@@ -816,6 +816,41 @@ label{display:block;font-size:11.5px;color:var(--ink3);font-weight:600;margin-bo
     <button class="btn btn-navy" onclick="loadAdminDashboard()">🔄 Refresh All</button>
   </div>
  
+  <div id="cacheStatsPanel" class="card" style="display:none;margin-top:12px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+          <div class="card-title" style="margin:0;">⚡ Semantic Cache</div>
+          <div style="display:flex;align-items:center;gap:10px;">
+            <span id="cacheStatus" style="font-size:12px;"></span>
+            <button class="btn btn-navy" onclick="clearCacheConfirm()"
+              style="font-size:11px;padding:4px 10px;">🗑 Clear Cache</button>
+          </div>
+        </div>
+        <div class="grid-4">
+          <div class="stat-tile">
+            <div class="st-icon">🎯</div>
+            <div class="st-value" id="cacheHitRate">—</div>
+            <div class="st-label">Cache Hit Rate</div>
+            <div class="st-sub" id="cacheTotalCalls">0 hits / 0 misses</div>
+          </div>
+          <div class="stat-tile">
+            <div class="st-icon">💰</div>
+            <div class="st-value" id="cacheCostSaved">$0</div>
+            <div class="st-label">GPT Cost Saved</div>
+            <div class="st-sub">vs direct calls</div>
+          </div>
+          <div class="stat-tile">
+            <div class="st-icon">🗄️</div>
+            <div class="st-value" id="cacheEntries">—</div>
+            <div class="st-label">Cached Results</div>
+            <div class="st-sub">in Redis</div>
+          </div>
+          <div class="stat-tile">
+            <div class="st-icon">⚙️</div>
+            <div class="st-value">0.93</div>
+            <div class="st-label">Similarity Threshold</div>
+    </div>  </div>  </div>
+ 
+ 
   <!-- ROW 1: Stat tiles -->
   <div class="grid-4" style="margin-bottom:16px;" id="adminStatTiles">
     <div class="stat-tile">
@@ -843,7 +878,6 @@ label{display:block;font-size:11.5px;color:var(--ink3);font-weight:600;margin-bo
       <div class="st-sub" id="st-docs-sub">— chunks indexed</div>
     </div>
   </div>
- 
   <!-- ROW 2: Cost by Stage + KB Breakdown -->
   <div class="grid-2">
  
@@ -961,7 +995,7 @@ function showTab(name, el) {
   if(name==='kb')      { loadDocTree(); renderSystemsPills(); populateMeetingDropdowns(); }
   if(name==='sessions'){ loadSessions(); }
   if(name==='meetings'){ populateMeetingDropdowns(); loadMeetings(); }
-  if(name==='admin')   { loadAdminDashboard(); }
+  if(name==='admin')   { loadAdminDashboard(); loadCacheStats(); }
   if(name==='eval')    { loadLatestEvalResults(); }
 }
  
@@ -2428,6 +2462,46 @@ async function loadLatestEvalResults() {
   } catch(e) {}
 }
  
+ 
+// ── Cache Stats ───────────────────────────────────────────────
+async function loadCacheStats() {
+  const panel = document.getElementById('cacheStatsPanel');
+  if (!panel) return;
+  panel.style.display = 'block';
+  try {
+    const res  = await fetch('/cache/stats');
+    const data = await res.json();
+ 
+    const enabled = data.enabled && data.status === 'connected';
+    const statusColor = enabled ? 'var(--green)' : 'var(--amber)';
+ 
+    document.getElementById('cacheStatus').innerHTML =
+      `<span style="color:${statusColor};font-weight:600;">
+        ${enabled ? '✅ Connected' : '⚠️ ' + (data.status||'Unavailable')}
+      </span>
+      <span style="font-size:11px;color:var(--ink5);margin-left:8px;">
+        Threshold: ${data.threshold} · TTL: ${data.ttl_hours}h
+      </span>`;
+ 
+    document.getElementById('cacheHitRate').textContent =
+      data.hit_rate_pct ? data.hit_rate_pct + '%' : '0%';
+    document.getElementById('cacheCostSaved').textContent =
+      '$' + (data.cost_saved_usd||0).toFixed(5);
+    document.getElementById('cacheEntries').textContent =
+      data.cached_entries || 0;
+    document.getElementById('cacheTotalCalls').textContent =
+      (data.total_hits||0) + ' hits / ' + (data.total_misses||0) + ' misses';
+  } catch(e) {}
+}
+ 
+async function clearCacheConfirm() {
+  if (!confirm('Clear all cached BABOK results? This cannot be undone.')) return;
+  const res  = await fetch('/cache', { method: 'DELETE' });
+  const data = await res.json();
+  alert(data.message || 'Cache cleared');
+  loadCacheStats();
+}
+ 
 async function loadAdminDashboard() {
   document.getElementById('adminLastRefresh').textContent = 'Refreshing...';
   await Promise.all([
@@ -2608,7 +2682,8 @@ async function loadAdminPrompts() {
 <!-- ═══════════════════════════════════════════════
      TAB 6 — EVALUATION FRAMEWORK
 ═══════════════════════════════════════════════ -->
-<div id="tab-eval" class="tab-content">
+ 
+  <div id="tab-eval" class="tab-content">
  
   <div class="admin-refresh-bar">
     <div>

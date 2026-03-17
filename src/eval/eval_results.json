@@ -1,46 +1,41 @@
 {
-  "run_id": "20260316_021346",
-  "timestamp": "2026-03-16T02:13:46.423280",
+  "run_id": "20260316_172124",
+  "timestamp": "2026-03-16T17:21:24.283684",
   "mode": "lexical",
   "prompt_versions": {
-    "agent_babok_check": "1.0.0",
+    "agent_babok_check": "1.6.0",
     "agent_reflection": "1.0.0"
   },
-  "cases_run": 8,
-  "cases_scored": 8,
+  "cases_run": 15,
+  "cases_scored": 15,
   "aggregate": {
-    "avg_agent_score": 73.2,
-    "score_accuracy": 0.375,
-    "issue_detection_precision": 0.354,
-    "issue_detection_recall": 0.438,
-    "issue_detection_f1": 0.375,
-    "hallucination_detection_accuracy": 0.375,
-    "total_cost_usd": 0.002984,
+    "avg_agent_score": 61.9,
+    "score_accuracy": 0.733,
+    "issue_detection_precision": 0.789,
+    "issue_detection_recall": 0.817,
+    "issue_detection_f1": 0.728,
+    "hallucination_detection_accuracy": 0.533,
+    "total_cost_usd": 0.008422,
     "score_errors": [
-      {
-        "case_id": "GR-002",
-        "expected_range": "40-65",
-        "actual_score": 66
-      },
-      {
-        "case_id": "GR-003",
-        "expected_range": "45-65",
-        "actual_score": 66
-      },
       {
         "case_id": "GR-004",
         "expected_range": "45-65",
-        "actual_score": 72
+        "actual_score": 66
       },
       {
-        "case_id": "GR-006",
-        "expected_range": "50-70",
-        "actual_score": 80
+        "case_id": "GR-005",
+        "expected_range": "55-80",
+        "actual_score": 83
       },
       {
-        "case_id": "GR-007",
-        "expected_range": "40-60",
-        "actual_score": 76
+        "case_id": "GR-009",
+        "expected_range": "50-75",
+        "actual_score": 40
+      },
+      {
+        "case_id": "GR-015",
+        "expected_range": "0-40",
+        "actual_score": 44
       }
     ]
   },
@@ -48,18 +43,22 @@
     {
       "case_id": "GR-001",
       "case_name": "Clear high-quality requirements",
-      "agent_score": 84,
+      "agent_score": 90,
       "expected_range": "80-100",
       "score_in_range": true,
-      "detected_issues": [],
+      "detected_issues": [
+        "testability"
+      ],
       "expected_issues": [],
       "true_positives": [],
       "false_negatives": [],
-      "false_positives": [],
-      "precision": 1.0,
+      "false_positives": [
+        "testability"
+      ],
+      "precision": 0.0,
       "recall": 1.0,
-      "f1": 1.0,
-      "babok_cost": 0.000393,
+      "f1": 0.0,
+      "babok_cost": 0.000621,
       "expected_hallucination_rate": 0,
       "detected_hallucination_rate": 0.333,
       "hallucination_detection_correct": false,
@@ -78,19 +77,15 @@
             "warning": null
           },
           "REQ-003": {
-            "groundedness_score": 0.333,
+            "groundedness_score": 0.0,
             "verdict": "ungrounded",
             "flagged_terms": [
               {
                 "term": "15 minutes",
                 "reason": "numeric value not found in source context"
-              },
-              {
-                "term": "v3.2",
-                "reason": "system/product name not found in source context"
               }
             ],
-            "warning": "\u26a0\ufe0f Potential hallucination: 2 term(s) not supported by source context: 15 minutes, v3.2"
+            "warning": "\u26a0\ufe0f Potential hallucination: 1 term(s) not supported by source context: 15 minutes"
           }
         },
         "hallucination_rate": 0.333,
@@ -101,14 +96,14 @@
         "overall_verdict": "mixed",
         "session_warning": "\u26a0\ufe0f 1 requirement(s) may contain unsupported claims. Please verify against source documents."
       },
-      "duration_seconds": 9.1
+      "duration_seconds": 6.0
     },
     {
       "case_id": "GR-002",
-      "case_name": "Testability failures \u2014 vague performance terms",
-      "agent_score": 66,
+      "case_name": "Testability failures \u00e2\u20ac\u201d vague performance terms",
+      "agent_score": 52,
       "expected_range": "40-65",
-      "score_in_range": false,
+      "score_in_range": true,
       "detected_issues": [
         "testability"
       ],
@@ -123,7 +118,7 @@
       "precision": 1.0,
       "recall": 1.0,
       "f1": 1.0,
-      "babok_cost": 0.000449,
+      "babok_cost": 0.00064,
       "expected_hallucination_rate": 0,
       "detected_hallucination_rate": 0.0,
       "hallucination_detection_correct": true,
@@ -156,18 +151,16 @@
         "overall_verdict": "clean",
         "session_warning": null
       },
-      "duration_seconds": 12.2
+      "duration_seconds": 8.8
     },
     {
       "case_id": "GR-003",
-      "case_name": "Ambiguity failures \u2014 conditional language",
-      "agent_score": 66,
+      "case_name": "Ambiguity failures \u00e2\u20ac\u201d conditional language",
+      "agent_score": 54,
       "expected_range": "45-65",
-      "score_in_range": false,
+      "score_in_range": true,
       "detected_issues": [
-        "completeness",
-        "unambiguity",
-        "testability"
+        "unambiguity"
       ],
       "expected_issues": [
         "unambiguity"
@@ -176,14 +169,11 @@
         "unambiguity"
       ],
       "false_negatives": [],
-      "false_positives": [
-        "completeness",
-        "testability"
-      ],
-      "precision": 0.333,
+      "false_positives": [],
+      "precision": 1.0,
       "recall": 1.0,
-      "f1": 0.5,
-      "babok_cost": 0.000389,
+      "f1": 1.0,
+      "babok_cost": 0.000556,
       "expected_hallucination_rate": 0,
       "detected_hallucination_rate": 0.0,
       "hallucination_detection_correct": true,
@@ -210,72 +200,58 @@
         "overall_verdict": "clean",
         "session_warning": null
       },
-      "duration_seconds": 11.1
+      "duration_seconds": 6.2
     },
     {
       "case_id": "GR-004",
-      "case_name": "Atomicity failure \u2014 bundled requirements",
-      "agent_score": 72,
+      "case_name": "Atomicity failure \u00e2\u20ac\u201d bundled requirements",
+      "agent_score": 66,
       "expected_range": "45-65",
       "score_in_range": false,
       "detected_issues": [
-        "testability"
+        "atomicity"
       ],
       "expected_issues": [
         "atomicity"
       ],
-      "true_positives": [],
-      "false_negatives": [
+      "true_positives": [
         "atomicity"
       ],
-      "false_positives": [
-        "testability"
-      ],
-      "precision": 0.0,
-      "recall": 0.0,
-      "f1": 0.0,
-      "babok_cost": 0.000243,
+      "false_negatives": [],
+      "false_positives": [],
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "babok_cost": 0.000474,
       "expected_hallucination_rate": 0,
-      "detected_hallucination_rate": 1.0,
-      "hallucination_detection_correct": false,
+      "detected_hallucination_rate": 0.0,
+      "hallucination_detection_correct": true,
       "hallucination_detail": {
         "per_requirement": {
           "REQ-001": {
-            "groundedness_score": 0.0,
-            "verdict": "ungrounded",
-            "flagged_terms": [
-              {
-                "term": "HRIS",
-                "reason": "system/product name not found in source context"
-              },
-              {
-                "term": "VPN",
-                "reason": "system/product name not found in source context"
-              }
-            ],
-            "warning": "\u26a0\ufe0f Potential hallucination: 2 term(s) not supported by source context: HRIS, VPN"
+            "groundedness_score": 1.0,
+            "verdict": "grounded",
+            "flagged_terms": [],
+            "warning": null
           }
         },
-        "hallucination_rate": 1.0,
-        "ungrounded_count": 1,
+        "hallucination_rate": 0.0,
+        "ungrounded_count": 0,
         "partial_count": 0,
-        "grounded_count": 0,
+        "grounded_count": 1,
         "total_checked": 1,
-        "overall_verdict": "high_risk",
-        "session_warning": "\ud83d\udea8 High hallucination risk: 1 requirement(s) contain claims not found in any source context. Review carefully before approving."
+        "overall_verdict": "clean",
+        "session_warning": null
       },
-      "duration_seconds": 5.3
+      "duration_seconds": 2.6
     },
     {
       "case_id": "GR-005",
-      "case_name": "Hallucination \u2014 invented SLA not in context",
-      "agent_score": 76,
+      "case_name": "Hallucination \u00e2\u20ac\u201d invented SLA not in context",
+      "agent_score": 83,
       "expected_range": "55-80",
-      "score_in_range": true,
-      "detected_issues": [
-        "completeness",
-        "testability"
-      ],
+      "score_in_range": false,
+      "detected_issues": [],
       "expected_issues": [
         "hallucination"
       ],
@@ -283,14 +259,11 @@
       "false_negatives": [
         "hallucination"
       ],
-      "false_positives": [
-        "completeness",
-        "testability"
-      ],
-      "precision": 0.0,
+      "false_positives": [],
+      "precision": 1.0,
       "recall": 0.0,
       "f1": 0.0,
-      "babok_cost": 0.000358,
+      "babok_cost": 0.000503,
       "expected_hallucination_rate": 0.5,
       "detected_hallucination_rate": 1.0,
       "hallucination_detection_correct": true,
@@ -327,33 +300,31 @@
         "overall_verdict": "high_risk",
         "session_warning": "\ud83d\udea8 High hallucination risk: 2 requirement(s) contain claims not found in any source context. Review carefully before approving."
       },
-      "duration_seconds": 10.7
+      "duration_seconds": 4.4
     },
     {
       "case_id": "GR-006",
-      "case_name": "Completeness failure \u2014 missing exception handling",
-      "agent_score": 80,
+      "case_name": "Completeness failure \u00e2\u20ac\u201d missing exception handling",
+      "agent_score": 62,
       "expected_range": "50-70",
-      "score_in_range": false,
+      "score_in_range": true,
       "detected_issues": [
-        "testability"
+        "completeness"
       ],
       "expected_issues": [
         "completeness"
       ],
-      "true_positives": [],
-      "false_negatives": [
+      "true_positives": [
         "completeness"
       ],
-      "false_positives": [
-        "testability"
-      ],
-      "precision": 0.0,
-      "recall": 0.0,
-      "f1": 0.0,
-      "babok_cost": 0.0003,
+      "false_negatives": [],
+      "false_positives": [],
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "babok_cost": 0.000539,
       "expected_hallucination_rate": 0,
-      "detected_hallucination_rate": 0.25,
+      "detected_hallucination_rate": 0.5,
       "hallucination_detection_correct": false,
       "hallucination_detail": {
         "per_requirement": {
@@ -364,50 +335,48 @@
             "warning": null
           },
           "REQ-002": {
-            "groundedness_score": 0.5,
-            "verdict": "partial",
+            "groundedness_score": 0.0,
+            "verdict": "ungrounded",
             "flagged_terms": [
               {
                 "term": "15 minutes",
                 "reason": "numeric value not found in source context"
               }
             ],
-            "warning": "1 term(s) not found in source context: 15 minutes"
+            "warning": "\u26a0\ufe0f Potential hallucination: 1 term(s) not supported by source context: 15 minutes"
           }
         },
-        "hallucination_rate": 0.25,
-        "ungrounded_count": 0,
-        "partial_count": 1,
+        "hallucination_rate": 0.5,
+        "ungrounded_count": 1,
+        "partial_count": 0,
         "grounded_count": 1,
         "total_checked": 2,
         "overall_verdict": "mixed",
         "session_warning": "\u26a0\ufe0f 1 requirement(s) may contain unsupported claims. Please verify against source documents."
       },
-      "duration_seconds": 6.8
+      "duration_seconds": 6.0
     },
     {
       "case_id": "GR-007",
-      "case_name": "Consistency failure \u2014 conflicting requirements",
-      "agent_score": 76,
+      "case_name": "Consistency failure \u00e2\u20ac\u201d conflicting requirements",
+      "agent_score": 51,
       "expected_range": "40-60",
-      "score_in_range": false,
+      "score_in_range": true,
       "detected_issues": [
-        "unambiguity"
+        "consistency"
       ],
       "expected_issues": [
         "consistency"
       ],
-      "true_positives": [],
-      "false_negatives": [
+      "true_positives": [
         "consistency"
       ],
-      "false_positives": [
-        "unambiguity"
-      ],
-      "precision": 0.0,
-      "recall": 0.0,
-      "f1": 0.0,
-      "babok_cost": 0.000323,
+      "false_negatives": [],
+      "false_positives": [],
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "babok_cost": 0.000544,
       "expected_hallucination_rate": 0,
       "detected_hallucination_rate": 1.0,
       "hallucination_detection_correct": false,
@@ -444,21 +413,22 @@
         "overall_verdict": "high_risk",
         "session_warning": "\ud83d\udea8 High hallucination risk: 2 requirement(s) contain claims not found in any source context. Review carefully before approving."
       },
-      "duration_seconds": 8.8
+      "duration_seconds": 6.4
     },
     {
       "case_id": "GR-008",
-      "case_name": "Mixed quality \u2014 some good, some bad",
+      "case_name": "Mixed quality \u00e2\u20ac\u201d some good, some bad",
       "agent_score": 66,
       "expected_range": "55-75",
       "score_in_range": true,
       "detected_issues": [
-        "completeness",
-        "testability"
+        "testability",
+        "unambiguity",
+        "completeness"
       ],
       "expected_issues": [
-        "ambiguity",
-        "testability"
+        "testability",
+        "ambiguity"
       ],
       "true_positives": [
         "testability"
@@ -467,12 +437,13 @@
         "ambiguity"
       ],
       "false_positives": [
+        "unambiguity",
         "completeness"
       ],
-      "precision": 0.5,
+      "precision": 0.333,
       "recall": 0.5,
-      "f1": 0.5,
-      "babok_cost": 0.000529,
+      "f1": 0.4,
+      "babok_cost": 0.000782,
       "expected_hallucination_rate": 0,
       "detected_hallucination_rate": 0.25,
       "hallucination_detection_correct": false,
@@ -485,13 +456,9 @@
               {
                 "term": "10 minutes",
                 "reason": "numeric value not found in source context"
-              },
-              {
-                "term": "HRIS",
-                "reason": "system/product name not found in source context"
               }
             ],
-            "warning": "\u26a0\ufe0f Potential hallucination: 2 term(s) not supported by source context: 10 minutes, HRIS"
+            "warning": "\u26a0\ufe0f Potential hallucination: 1 term(s) not supported by source context: 10 minutes"
           },
           "REQ-002": {
             "groundedness_score": 1.0,
@@ -520,7 +487,352 @@
         "overall_verdict": "mixed",
         "session_warning": "\u26a0\ufe0f 1 requirement(s) may contain unsupported claims. Please verify against source documents."
       },
-      "duration_seconds": 14.5
+      "duration_seconds": 11.6
+    },
+    {
+      "case_id": "GR-009",
+      "case_name": "Hallucination \u00e2\u20ac\u201d invented system name",
+      "agent_score": 40,
+      "expected_range": "50-75",
+      "score_in_range": false,
+      "detected_issues": [
+        "consistency"
+      ],
+      "expected_issues": [
+        "hallucination"
+      ],
+      "true_positives": [],
+      "false_negatives": [
+        "hallucination"
+      ],
+      "false_positives": [
+        "consistency"
+      ],
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1": 0.0,
+      "babok_cost": 0.000484,
+      "expected_hallucination_rate": 1,
+      "detected_hallucination_rate": 0.0,
+      "hallucination_detection_correct": false,
+      "hallucination_detail": {
+        "per_requirement": {
+          "REQ-001": {
+            "groundedness_score": 1.0,
+            "verdict": "grounded",
+            "flagged_terms": [],
+            "warning": null
+          }
+        },
+        "hallucination_rate": 0.0,
+        "ungrounded_count": 0,
+        "partial_count": 0,
+        "grounded_count": 1,
+        "total_checked": 1,
+        "overall_verdict": "clean",
+        "session_warning": null
+      },
+      "duration_seconds": 4.5
+    },
+    {
+      "case_id": "GR-010",
+      "case_name": "Edited requirements \u00e2\u20ac\u201d BA improved quality",
+      "agent_score": 76,
+      "expected_range": "75-95",
+      "score_in_range": true,
+      "detected_issues": [],
+      "expected_issues": [],
+      "true_positives": [],
+      "false_negatives": [],
+      "false_positives": [],
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "babok_cost": 0.000516,
+      "expected_hallucination_rate": 0,
+      "detected_hallucination_rate": 0.5,
+      "hallucination_detection_correct": false,
+      "hallucination_detail": {
+        "per_requirement": {
+          "REQ-001": {
+            "groundedness_score": 1.0,
+            "verdict": "grounded",
+            "flagged_terms": [],
+            "warning": null
+          },
+          "REQ-002": {
+            "groundedness_score": 0.0,
+            "verdict": "ungrounded",
+            "flagged_terms": [
+              {
+                "term": "5 seconds",
+                "reason": "numeric value not found in source context"
+              }
+            ],
+            "warning": "\u26a0\ufe0f Potential hallucination: 1 term(s) not supported by source context: 5 seconds"
+          }
+        },
+        "hallucination_rate": 0.5,
+        "ungrounded_count": 1,
+        "partial_count": 0,
+        "grounded_count": 1,
+        "total_checked": 2,
+        "overall_verdict": "mixed",
+        "session_warning": "\u26a0\ufe0f 1 requirement(s) may contain unsupported claims. Please verify against source documents."
+      },
+      "duration_seconds": 5.0
+    },
+    {
+      "case_id": "GR-011",
+      "case_name": "Data requirements \u00e2\u20ac\u201d missing constraints",
+      "agent_score": 54,
+      "expected_range": "45-65",
+      "score_in_range": true,
+      "detected_issues": [
+        "testability",
+        "completeness"
+      ],
+      "expected_issues": [
+        "completeness"
+      ],
+      "true_positives": [
+        "completeness"
+      ],
+      "false_negatives": [],
+      "false_positives": [
+        "testability"
+      ],
+      "precision": 0.5,
+      "recall": 1.0,
+      "f1": 0.667,
+      "babok_cost": 0.000593,
+      "expected_hallucination_rate": 0,
+      "detected_hallucination_rate": 0.0,
+      "hallucination_detection_correct": true,
+      "hallucination_detail": {
+        "per_requirement": {
+          "REQ-001": {
+            "groundedness_score": 1.0,
+            "verdict": "grounded",
+            "flagged_terms": [],
+            "warning": null
+          },
+          "REQ-002": {
+            "groundedness_score": 1.0,
+            "verdict": "grounded",
+            "flagged_terms": [],
+            "warning": null
+          }
+        },
+        "hallucination_rate": 0.0,
+        "ungrounded_count": 0,
+        "partial_count": 0,
+        "grounded_count": 2,
+        "total_checked": 2,
+        "overall_verdict": "clean",
+        "session_warning": null
+      },
+      "duration_seconds": 7.4
+    },
+    {
+      "case_id": "GR-012",
+      "case_name": "Process requirements \u00e2\u20ac\u201d no business rules",
+      "agent_score": 50,
+      "expected_range": "50-70",
+      "score_in_range": true,
+      "detected_issues": [
+        "completeness"
+      ],
+      "expected_issues": [
+        "completeness"
+      ],
+      "true_positives": [
+        "completeness"
+      ],
+      "false_negatives": [],
+      "false_positives": [],
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "babok_cost": 0.000474,
+      "expected_hallucination_rate": 0,
+      "detected_hallucination_rate": 0.0,
+      "hallucination_detection_correct": true,
+      "hallucination_detail": {
+        "per_requirement": {
+          "REQ-001": {
+            "groundedness_score": 1.0,
+            "verdict": "grounded",
+            "flagged_terms": [],
+            "warning": null
+          }
+        },
+        "hallucination_rate": 0.0,
+        "ungrounded_count": 0,
+        "partial_count": 0,
+        "grounded_count": 1,
+        "total_checked": 1,
+        "overall_verdict": "clean",
+        "session_warning": null
+      },
+      "duration_seconds": 3.2
+    },
+    {
+      "case_id": "GR-013",
+      "case_name": "Security requirements \u00e2\u20ac\u201d compliance without specifics",
+      "agent_score": 51,
+      "expected_range": "45-65",
+      "score_in_range": true,
+      "detected_issues": [
+        "testability",
+        "completeness"
+      ],
+      "expected_issues": [
+        "testability",
+        "completeness"
+      ],
+      "true_positives": [
+        "testability",
+        "completeness"
+      ],
+      "false_negatives": [],
+      "false_positives": [],
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "babok_cost": 0.000488,
+      "expected_hallucination_rate": 0,
+      "detected_hallucination_rate": 0.0,
+      "hallucination_detection_correct": true,
+      "hallucination_detail": {
+        "per_requirement": {
+          "REQ-001": {
+            "groundedness_score": 1.0,
+            "verdict": "grounded",
+            "flagged_terms": [],
+            "warning": null
+          }
+        },
+        "hallucination_rate": 0.0,
+        "ungrounded_count": 0,
+        "partial_count": 0,
+        "grounded_count": 1,
+        "total_checked": 1,
+        "overall_verdict": "clean",
+        "session_warning": null
+      },
+      "duration_seconds": 4.4
+    },
+    {
+      "case_id": "GR-014",
+      "case_name": "Well-scoped integration requirements",
+      "agent_score": 90,
+      "expected_range": "82-100",
+      "score_in_range": true,
+      "detected_issues": [],
+      "expected_issues": [],
+      "true_positives": [],
+      "false_negatives": [],
+      "false_positives": [],
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "babok_cost": 0.000535,
+      "expected_hallucination_rate": 0,
+      "detected_hallucination_rate": 1.0,
+      "hallucination_detection_correct": false,
+      "hallucination_detail": {
+        "per_requirement": {
+          "REQ-001": {
+            "groundedness_score": 0.0,
+            "verdict": "ungrounded",
+            "flagged_terms": [
+              {
+                "term": "5 minutes",
+                "reason": "numeric value not found in source context"
+              }
+            ],
+            "warning": "\u26a0\ufe0f Potential hallucination: 1 term(s) not supported by source context: 5 minutes"
+          },
+          "REQ-002": {
+            "groundedness_score": 0.0,
+            "verdict": "ungrounded",
+            "flagged_terms": [
+              {
+                "term": "3 times",
+                "reason": "numeric value not found in source context"
+              }
+            ],
+            "warning": "\u26a0\ufe0f Potential hallucination: 1 term(s) not supported by source context: 3 times"
+          }
+        },
+        "hallucination_rate": 1.0,
+        "ungrounded_count": 2,
+        "partial_count": 0,
+        "grounded_count": 0,
+        "total_checked": 2,
+        "overall_verdict": "high_risk",
+        "session_warning": "\ud83d\udea8 High hallucination risk: 2 requirement(s) contain claims not found in any source context. Review carefully before approving."
+      },
+      "duration_seconds": 4.0
+    },
+    {
+      "case_id": "GR-015",
+      "case_name": "All dimensions failing",
+      "agent_score": 44,
+      "expected_range": "0-40",
+      "score_in_range": false,
+      "detected_issues": [
+        "testability",
+        "unambiguity",
+        "completeness"
+      ],
+      "expected_issues": [
+        "testability",
+        "unambiguity",
+        "atomicity",
+        "completeness"
+      ],
+      "true_positives": [
+        "testability",
+        "unambiguity",
+        "completeness"
+      ],
+      "false_negatives": [
+        "atomicity"
+      ],
+      "false_positives": [],
+      "precision": 1.0,
+      "recall": 0.75,
+      "f1": 0.857,
+      "babok_cost": 0.000673,
+      "expected_hallucination_rate": 0,
+      "detected_hallucination_rate": 0.0,
+      "hallucination_detection_correct": true,
+      "hallucination_detail": {
+        "per_requirement": {
+          "REQ-001": {
+            "groundedness_score": 1.0,
+            "verdict": "grounded",
+            "flagged_terms": [],
+            "warning": null
+          },
+          "REQ-002": {
+            "groundedness_score": 1.0,
+            "verdict": "grounded",
+            "flagged_terms": [],
+            "warning": null
+          }
+        },
+        "hallucination_rate": 0.0,
+        "ungrounded_count": 0,
+        "partial_count": 0,
+        "grounded_count": 2,
+        "total_checked": 2,
+        "overall_verdict": "clean",
+        "session_warning": null
+      },
+      "duration_seconds": 9.4
     }
   ]
 }

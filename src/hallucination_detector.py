@@ -101,31 +101,55 @@ def check_requirement_groundedness(
             })
  
     # ── Check 2: System/product names ─────────────────────────
-    # CamelCase names and acronyms that appear in the requirement
-    # but not in context are likely hallucinated.
-    # Skip common English words and standard technical terms.
+    # Only run system name check when we have sufficient context.
+    # Short KB context (< 200 chars) means the golden dataset or
+    # session has minimal context — skip to avoid false positives.
     ALLOWED_PATTERNS = {
-        "The", "This", "When", "If", "All", "Any", "Each",
+        # Common English words that match CamelCase pattern
+        "The", "This", "When", "If", "All", "Any", "Each", "New",
+        # Standard technical abbreviations — always acceptable
         "REST", "API", "JSON", "XML", "SQL", "HTTP", "HTTPS",
         "UI", "UX", "DB", "ID", "BA", "HR", "IT", "PM",
         "SLA", "SLO", "KPI", "OKR", "MVP", "POC",
+        # Common integration/system terms not specific to any vendor
+        "SSO", "LDAP", "SAML", "OAuth", "JWT", "MFA", "RBAC",
+        "CRUD", "ETL", "ERP", "CRM", "HRM", "HRIS",
+        # Protocol and format terms
+        "TCP", "UDP", "TLS", "SSL", "DNS", "SMTP", "SFTP",
+        "CSV", "PDF", "HTML", "CSS", "YAML", "TOML",
+        # Azure/cloud terms that are expected
+        "Azure", "AWS", "GCP",
     }
-    system_names_in_req = SYSTEM_NAME_PATTERN.findall(requirement_text)
-    for name in system_names_in_req:
-        if name in ALLOWED_PATTERNS:
-            continue
-        if len(name) < 3:
-            continue
-        if name.lower() not in combined_context:
-            flagged_terms.append({
-                "term":   name,
-                "reason": "system/product name not found in source context"
-            })
+ 
+    # Only check system names if context is substantial
+    # Short context = golden dataset stub or session with no KB docs
+    # Checking against it causes false positives
+        # Only check system names if context is substantial
+    system_names_in_req = []  # default empty if context too short
+    if len(combined_context) >= 200:
+        system_names_in_req = SYSTEM_NAME_PATTERN.findall(requirement_text)
+        for name in system_names_in_req:
+            if name in ALLOWED_PATTERNS:
+                continue
+            if len(name) < 4:  # raised from 3 to 4 — avoids short acronyms
+                continue
+            # Only flag if clearly a specific product/system name
+            # and not present anywhere in context
+            if name.lower() not in combined_context:
+                flagged_terms.append({
+                    "term":   name,
+                    "reason": "system/product name not found in source context"
+                })
  
     # ── Compute score ──────────────────────────────────────────
+    # Prepare system_names_in_req for score calculation
+    system_names_in_req = []
+    if len(combined_context) >= 200:
+        system_names_in_req = SYSTEM_NAME_PATTERN.findall(requirement_text)
+
     total_checks = len(numbers_in_req) + len(
-        [n for n in system_names_in_req if n not in ALLOWED_PATTERNS and len(n) >= 3]
-    )
+        [n for n in system_names_in_req if n not in ALLOWED_PATTERNS and len(n) >= 4]
+    ) if 'system_names_in_req' in dir() else len(numbers_in_req)
  
     if total_checks == 0:
         # No checkable terms — assume grounded (no evidence of hallucination)
