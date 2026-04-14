@@ -1,14 +1,26 @@
 # session_manager.py
-# UPDATED FOR AZURE CLOUD DEPLOYMENT
-# 
+# UPDATED FOR AZURE CLOUD DEPLOYMENT + PHASE 2 MULTI-TENANCY (Sprint 1)
+#
 # WHAT CHANGED FROM THE ORIGINAL:
 #   - Sessions are no longer saved as files on your laptop/server's hard drive
 #   - Sessions are now saved to Azure Blob Storage (cloud storage)
-#   - Everything else (stage names, functions, logic) stays EXACTLY the same
+#   - Phase 2 Sprint 1: every session operation is org_id aware
 #
-# WHY WE CHANGED THIS:
-#   - Azure App Service restarts regularly and wipes local files
-#   - Azure Blob Storage keeps files permanently, even after restarts
+# PHASE 2 BLOB PATH CONTRACT:
+#   Sprint 1 moves session blobs under an org prefix:
+#     BEFORE:  sessions/{session_id}.json
+#     AFTER:   sessions/{org_id}/{session_id}.json
+#   Legacy root-path blobs remain readable via a read-through fallback in
+#   load_session() — marked with LEGACY FALLBACK comments so it can be removed
+#   in a future sprint once all pilot blobs live under their org prefix.
+#
+# org_id DEFAULTS:
+#   Every public function accepts org_id with a default of "default". That
+#   preserves Phase 1 behaviour exactly — callers that don't pass org_id
+#   (i.e. main.py today, before JWT middleware lands in Sprint 3) behave as
+#   they always did. DEV_MODE=true in .env is the explicit pilot flag; the
+#   resolver below is the single seam where future auth will inject the
+#   authenticated user's org_id.
 #
 # STAGES:
 #   1 → Problem Definition
@@ -25,6 +37,9 @@ import os
 import uuid
 from datetime import datetime
 
+from dotenv import load_dotenv
+load_dotenv()   # match codebase convention — every module loads .env at import time
+
 # ── NEW IMPORTS FOR AZURE BLOB STORAGE ────────────────────────
 # These two lines are NEW — they load the Azure Blob Storage library
 from azure.storage.blob import BlobServiceClient
@@ -39,6 +54,23 @@ from azure.core.exceptions import ResourceNotFoundError
 # On your laptop, you can set it in a .env file (see instructions below).
 AZURE_CONNECTION_STRING = os.environ.get("AZURE_STORAGE_CONNECTION_STRING")
 SESSIONS_CONTAINER = "sessions"   # This is the container name in Azure Blob Storage
+
+DEFAULT_ORG_ID = "default"
+
+
+# ── HELPER: Resolve org_id (Phase 2 multi-tenancy seam) ───────
+# Today this always returns "default" — Phase 1 behaviour is preserved.
+# When JWT middleware lands in Sprint 3 (A8.6), the None branch below
+# becomes "raise 401 unless DEV_MODE". Every function in this module routes
+# through here, so the auth change will be a one-line edit.
+def _resolve_org_id(org_id):
+    """Return the effective org_id. Defaults to 'default' in pilot / DEV_MODE."""
+    if org_id:
+        return org_id
+    # DEV_MODE=true bypasses auth and pins to the default org (see CLAUDE.md A8 / rule 5)
+    if os.environ.get("DEV_MODE", "").lower() == "true":
+        return DEFAULT_ORG_ID
+    return DEFAULT_ORG_ID
 
 
 # ── HELPER: Get the Azure Blob Container ──────────────────────
@@ -63,12 +95,15 @@ def _get_container():
 
 
 # ── HELPER: Save session to Azure ─────────────────────────────
-# OLD CODE wrote to a file like: sessions/abc12345.json
-# NEW CODE uploads to Azure Blob like: sessions container → abc12345.json
+# Sprint 1: writes now go under sessions/{org_id}/{session_id}.json.
+# org_id is read from the session dict (every session has one — either set by
+# create_session or preserved from a Phase 1 legacy blob loaded via fallback).
 def _save_session(session):
-    """Save session data to Azure Blob Storage."""
+    """Save session data to Azure Blob Storage under its org_id prefix."""
     session["updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    blob_name = f"{session['session_id']}.json"         # e.g. "abc12345.json"
+    org_id    = _resolve_org_id(session.get("org_id"))
+    session["org_id"] = org_id   # normalise back onto the dict in case it was missing
+    blob_name = f"{org_id}/{session['session_id']}.json"
     data = json.dumps(session, indent=2)                # Convert to JSON text
     container = _get_container()
     container.upload_blob(
@@ -101,12 +136,18 @@ STAGE_NAMES = {
 }
 
 
-# ── Create (UNCHANGED LOGIC) ───────────────────────────────────
-def create_session(problem_raw, system_name=None, source_type=None):
-    """Create a new analysis session. Called when BA submits problem."""
+# ── Create ─────────────────────────────────────────────────────
+def create_session(problem_raw, system_name=None, source_type=None, org_id=None):
+    """Create a new analysis session. Called when BA submits problem.
+
+    org_id defaults to 'default' via _resolve_org_id. In Sprint 3 this
+    parameter will be populated by the JWT middleware from the authenticated
+    user's claims; for now callers can omit it and Phase 1 behaviour holds.
+    """
+    org_id = _resolve_org_id(org_id)
     session = {
         "session_id":   str(uuid.uuid4())[:8],
-        "org_id":       "default",
+        "org_id":       org_id,
         "created_at":   datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "updated_at":   datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "stage":        STAGE_PROBLEM,
@@ -155,25 +196,47 @@ def create_session(problem_raw, system_name=None, source_type=None):
 
 
 # ── Read / Write ───────────────────────────────────────────────
-def load_session(session_id):
-    """Load a session by ID from Azure Blob Storage."""
-    # OLD CODE:
-    #   with open("sessions/abc12345.json", "r") as f:
-    #       return json.load(f)
-    #
-    # NEW CODE: download from Azure Blob Storage
+def load_session(session_id, org_id=None):
+    """Load a session by ID from Azure Blob Storage.
+
+    Primary path:  sessions/{org_id}/{session_id}.json
+    LEGACY FALLBACK: sessions/{session_id}.json  (Phase 1 root-path blobs)
+
+    Option A migration per Sprint 1 — read-through fallback only, no rewrite.
+    Legacy blobs stay at root until their session is updated through normal use,
+    at which point _save_session() writes them under the org prefix. This block
+    is marked LEGACY FALLBACK so it can be deleted in a future sprint once
+    pilot blobs are confirmed migrated.
+    """
+    org_id    = _resolve_org_id(org_id)
+    container = _get_container()
+
+    # Primary path — Sprint 1 contract
     try:
-        container = _get_container()
-        blob = container.get_blob_client(f"{session_id}.json")
-        data = blob.download_blob().readall()       # Download the file bytes
-        return json.loads(data.decode("utf-8"))     # Convert bytes → JSON
+        blob = container.get_blob_client(f"{org_id}/{session_id}.json")
+        data = blob.download_blob().readall()
+        return json.loads(data.decode("utf-8"))
     except ResourceNotFoundError:
-        raise FileNotFoundError(f"Session '{session_id}' not found in Azure Blob Storage")
+        pass   # fall through to legacy lookup
+
+    # ── LEGACY FALLBACK (remove once all Phase 1 blobs are migrated) ──
+    try:
+        blob = container.get_blob_client(f"{session_id}.json")
+        data = blob.download_blob().readall()
+        session = json.loads(data.decode("utf-8"))
+        # Stamp org_id in memory so a subsequent _save_session writes to the new path.
+        session.setdefault("org_id", DEFAULT_ORG_ID)
+        return session
+    except ResourceNotFoundError:
+        raise FileNotFoundError(
+            f"Session '{session_id}' not found in Azure Blob Storage "
+            f"(checked {org_id}/{session_id}.json and legacy {session_id}.json)"
+        )
 
 
-def update_session(session_id, updates):
-    """Update specific fields in a session. (UNCHANGED LOGIC)"""
-    session = load_session(session_id)
+def update_session(session_id, updates, org_id=None):
+    """Update specific fields in a session."""
+    session = load_session(session_id, org_id=org_id)
     session.update(updates)
     if "stage" in updates:
         session["stage_name"] = STAGE_NAMES.get(updates["stage"], "Unknown")
@@ -181,59 +244,91 @@ def update_session(session_id, updates):
     return session
 
 
-def advance_stage(session_id):
-    """Move session to the next stage. (UNCHANGED LOGIC)"""
-    session = load_session(session_id)
+def advance_stage(session_id, org_id=None):
+    """Move session to the next stage."""
+    session = load_session(session_id, org_id=org_id)
     current = session["stage"]
     if current >= STAGE_COMPLETE:
         return session
-    return update_session(session_id, {"stage": current + 1})
+    return update_session(session_id, {"stage": current + 1}, org_id=session.get("org_id"))
 
 
 # ── List / Delete ──────────────────────────────────────────────
-def list_sessions():
-    """Return all sessions from Azure Blob Storage, newest first."""
-    # OLD CODE: looped over files in local sessions/ folder
-    # NEW CODE: lists blobs in the Azure sessions container
+def list_sessions(org_id=None):
+    """Return all sessions for an org from Azure Blob Storage, newest first.
+
+    Scoping is enforced at the blob list level via name_starts_with so no
+    cross-org blobs are even downloaded. Legacy root-path blobs (Phase 1)
+    are also included when org_id resolves to 'default', to keep the pilot's
+    existing sessions visible while Option A migration is in force.
+    """
+    org_id    = _resolve_org_id(org_id)
     container = _get_container()
-    sessions = []
-    for blob_item in container.list_blobs():                # List all .json files
+    sessions  = []
+    seen_ids  = set()
+
+    def _accumulate(blob_name):
+        try:
+            blob = container.get_blob_client(blob_name)
+            data = blob.download_blob().readall()
+            s = json.loads(data.decode("utf-8"))
+            if s["session_id"] in seen_ids:
+                return   # org-prefixed copy already captured
+            seen_ids.add(s["session_id"])
+            sessions.append({
+                "session_id":  s["session_id"],
+                "stage":       s["stage"],
+                "stage_name":  s["stage_name"],
+                "created_at":  s["created_at"],
+                "updated_at":  s["updated_at"],
+                "problem_raw": s["problem_raw"][:80] + "..."
+                               if len(s["problem_raw"]) > 80
+                               else s["problem_raw"]
+            })
+        except Exception:
+            pass
+
+    # Primary scope — sessions/{org_id}/*.json
+    for blob_item in container.list_blobs(name_starts_with=f"{org_id}/"):
         if blob_item.name.endswith(".json"):
-            try:
-                blob = container.get_blob_client(blob_item.name)
-                data = blob.download_blob().readall()
-                s = json.loads(data.decode("utf-8"))
-                sessions.append({
-                    "session_id":  s["session_id"],
-                    "stage":       s["stage"],
-                    "stage_name":  s["stage_name"],
-                    "created_at":  s["created_at"],
-                    "updated_at":  s["updated_at"],
-                    "problem_raw": s["problem_raw"][:80] + "..."
-                                   if len(s["problem_raw"]) > 80
-                                   else s["problem_raw"]
-                })
-            except Exception:
-                pass
+            _accumulate(blob_item.name)
+
+    # ── LEGACY FALLBACK (remove once all Phase 1 blobs are migrated) ──
+    # Only the default org inherits Phase 1 root-path blobs.
+    if org_id == DEFAULT_ORG_ID:
+        for blob_item in container.list_blobs():
+            if blob_item.name.endswith(".json") and "/" not in blob_item.name:
+                _accumulate(blob_item.name)
+
     sessions.sort(key=lambda x: x["updated_at"], reverse=True)
     return sessions
 
 
-def delete_session(session_id):
-    """Delete a session from Azure Blob Storage."""
-    # OLD CODE: os.remove("sessions/abc12345.json")
-    # NEW CODE: delete the blob from Azure
+def delete_session(session_id, org_id=None):
+    """Delete a session from Azure Blob Storage.
+
+    Tries the org-prefixed path first; falls back to the legacy root path so
+    Phase 1 blobs can still be cleaned up from the admin UI.
+    """
+    org_id    = _resolve_org_id(org_id)
+    container = _get_container()
     try:
-        container = _get_container()
+        container.delete_blob(f"{org_id}/{session_id}.json")
+        return {"success": True}
+    except ResourceNotFoundError:
+        pass
+
+    # ── LEGACY FALLBACK (remove once all Phase 1 blobs are migrated) ──
+    try:
         container.delete_blob(f"{session_id}.json")
         return {"success": True}
     except ResourceNotFoundError:
         return {"success": False, "message": "Session not found"}
 
 
-def get_session_summary(session_id):
-    """Return a human-readable progress summary. (UNCHANGED LOGIC)"""
-    session = load_session(session_id)
+def get_session_summary(session_id, org_id=None):
+    """Return a human-readable progress summary."""
+    session = load_session(session_id, org_id=org_id)
     stage   = session["stage"]
 
     summary = {
@@ -273,9 +368,9 @@ def get_session_summary(session_id):
     return summary
 
 # ── Revert Session to Previous Stage ──────────────────────────
-def revert_session(session_id: str, target_stage: int) -> dict:
+def revert_session(session_id: str, target_stage: int, org_id=None) -> dict:
     """Revert session to a previous stage, clearing all data after it."""
-    session = load_session(session_id)
+    session = load_session(session_id, org_id=org_id)
 
     clear_map = {
         2: ['clarifying_questions', 'clarifying_answers', 'problem_refined',

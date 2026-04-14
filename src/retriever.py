@@ -18,13 +18,19 @@ def get_relevant_context(
     question,
     top_k=3,
     system_name=None,
-    source_type=None
+    source_type=None,
+    org_id=None
 ):
     """
-    Find the most relevant chunks for a question.
+    Find the most relevant chunks for a question within an org's KB.
     Returns list of result dicts with content + metadata.
+
+    org_id defaults to 'default' via the embedder's resolver — Phase 1
+    callers that don't pass it continue to work. Once JWT middleware lands
+    in Sprint 3, main.py will forward the authenticated user's org_id here.
     """
     print(f"\n🔍 Searching: '{question}'")
+    print(f"   Filter — Org   : {org_id or '(default)'}")
     if system_name:
         print(f"   Filter — System: {system_name}")
     if source_type:
@@ -34,7 +40,8 @@ def get_relevant_context(
         query=question,
         top_k=top_k,
         system_name=system_name,
-        source_type=source_type
+        source_type=source_type,
+        org_id=org_id
     )
 
     print(f"📋 Found {len(results)} relevant chunks")
@@ -95,15 +102,17 @@ def format_citations_block(citations):
 def load_and_index_document(
     file_path,
     system_name,
-    source_type
+    source_type,
+    org_id=None
 ):
     """
     Full pipeline:
     Load document → chunk → embed → store in Azure AI Search
-    with full hierarchy metadata.
+    with full hierarchy metadata (incl. org_id).
     """
     document_name = os.path.basename(file_path)
     print(f"\n📂 Indexing: {document_name}")
+    print(f"   Org    : {org_id or '(default)'}")
     print(f"   System : {system_name}")
     print(f"   Source : {source_type}")
 
@@ -112,7 +121,8 @@ def load_and_index_document(
         text=text,
         system_name=system_name,
         source_type=source_type,
-        document_name=document_name
+        document_name=document_name,
+        org_id=org_id
     )
 
     print(f"✅ Indexed {total} chunks from {document_name}")

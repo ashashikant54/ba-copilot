@@ -68,6 +68,18 @@ def create_index():
             analyzer_name="en.microsoft"   # English language analyser
         ),
 
+        # ── Tenancy (Phase 2 Sprint 1) ────────────────────────
+        # Filterable so every retriever query can enforce org isolation.
+        # Legacy docs indexed before Sprint 1 have this field missing/null;
+        # the search filter below handles that with an "eq null" disjunct
+        # so Phase 1 "default" org behaviour is preserved.
+        SimpleField(
+            name="org_id",
+            type=SearchFieldDataType.String,
+            filterable=True,
+            facetable=True
+        ),
+
         # ── Hierarchy Metadata ────────────────────────────────
         SimpleField(
             name="system_name",
@@ -166,20 +178,25 @@ def embed_and_store(
     text,
     system_name,
     source_type,
-    document_name
+    document_name,
+    org_id=None
 ):
     """
     Full pipeline for one document:
       1. Chunk the text
       2. Embed each chunk
-      3. Store in Azure AI Search with full metadata
+      3. Store in Azure AI Search with full metadata (incl. org_id)
 
     Parameters:
       text          → raw text content of the document
       system_name   → e.g. "HR System"
       source_type   → e.g. "SharePoint"
       document_name → e.g. "HR_Policy_2024.pdf"
+      org_id        → tenant scope; defaults to 'default' (Phase 2 Sprint 1)
     """
+    # Late import to avoid a module-level circular dep with session_manager.
+    from session_manager import _resolve_org_id
+    org_id = _resolve_org_id(org_id)
     # Ensure index exists
     create_index()
 
@@ -196,13 +213,16 @@ def embed_and_store(
 
     # Build document ID prefix
     # (safe for Azure — no spaces or special chars)
+    safe_org    = org_id.replace(" ", "-").lower()
     safe_system = system_name.replace(" ", "-").lower()
     safe_source = source_type.replace(" ", "-").lower()
     # Remove file extension and replace any dots with dashes
     # Azure AI Search keys only allow: letters, digits, _ - =
     doc_no_ext  = os.path.splitext(document_name)[0]  # removes .txt .pdf .docx
     safe_doc    = doc_no_ext.replace(" ", "-").replace(".", "-").lower()
-    id_prefix   = f"{safe_system}_{safe_source}_{safe_doc}"
+    # Prefix org_id so doc ids are globally unique across tenants even when
+    # two orgs index a file with the same name under the same system/source.
+    id_prefix   = f"{safe_org}_{safe_system}_{safe_source}_{safe_doc}"
 
     # Embed and upload each chunk
     print(f"\n🔢 Embedding {total} chunks...")
@@ -216,6 +236,7 @@ def embed_and_store(
         doc = {
             "id":            f"{id_prefix}_{i}",
             "content":       chunk,
+            "org_id":        org_id,
             "system_name":   system_name,
             "source_type":   source_type,
             "document_name": document_name,
@@ -242,27 +263,41 @@ def search(
     query,
     top_k=3,
     system_name=None,
-    source_type=None
+    source_type=None,
+    org_id=None
 ):
     """
     Hybrid search — combines keyword + vector search.
     Optionally filter by system_name and/or source_type.
+    Always filters by org_id for Phase 2 tenant isolation.
 
     Returns list of dicts with content + metadata.
     """
+    # Late import to avoid a module-level circular dep with session_manager.
+    from session_manager import _resolve_org_id, DEFAULT_ORG_ID
+    org_id = _resolve_org_id(org_id)
+
     search_client = SearchClient(
         endpoint=ENDPOINT,
         index_name=INDEX_NAME,
         credential=CREDENTIAL
     )
 
-    # Build filter string if hierarchy filters provided
+    # Build filter string.
+    # Tenancy filter: match docs explicitly tagged with this org_id.
+    # For the "default" org we also match legacy docs where org_id is null
+    # (indexed before Sprint 1). Remove the null disjunct in a future sprint
+    # once all pilot docs have been re-indexed with org_id.
     filters = []
+    if org_id == DEFAULT_ORG_ID:
+        filters.append(f"(org_id eq '{org_id}' or org_id eq null)")
+    else:
+        filters.append(f"org_id eq '{org_id}'")
     if system_name:
         filters.append(f"system_name eq '{system_name}'")
     if source_type:
         filters.append(f"source_type eq '{source_type}'")
-    filter_str = " and ".join(filters) if filters else None
+    filter_str = " and ".join(filters)
 
     # Get embedding for the query
     query_embedding = get_embedding(query)
@@ -282,6 +317,7 @@ def search(
         top=top_k,
         select=[
             "content",
+            "org_id",
             "system_name",
             "source_type",
             "document_name",
@@ -295,6 +331,7 @@ def search(
     for r in results:
         formatted.append({
             "content":       r["content"],
+            "org_id":        r.get("org_id"),     # may be None for legacy docs
             "system_name":   r["system_name"],
             "source_type":   r["source_type"],
             "document_name": r["document_name"],
