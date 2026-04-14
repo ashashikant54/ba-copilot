@@ -290,7 +290,7 @@ def api_auth_whoami(request: Request):
 # SESSION MANAGEMENT
 # ══════════════════════════════════════════════════════════════
 @app.post("/sessions/create")
-def api_create_session(req: CreateSessionRequest):
+def api_create_session(req: CreateSessionRequest, request: Request):
     if not req.problem.strip():
         raise HTTPException(400, "Please enter a business problem")
     if len(req.problem.strip()) < 20:
@@ -298,43 +298,44 @@ def api_create_session(req: CreateSessionRequest):
     session = create_session(
         problem_raw=req.problem,
         system_name=req.system_name,
-        source_type=req.source_type
+        source_type=req.source_type,
+        org_id=request.state.org_id,
     )
     return session
- 
- 
+
+
 @app.get("/sessions")
-def api_list_sessions():
-    return list_sessions()
- 
- 
+def api_list_sessions(request: Request):
+    return list_sessions(org_id=request.state.org_id)
+
+
 @app.get("/sessions/{session_id}")
-def api_get_session(session_id: str):
+def api_get_session(session_id: str, request: Request):
     try:
-        return load_session(session_id)
+        return load_session(session_id, org_id=request.state.org_id)
     except FileNotFoundError:
         raise HTTPException(404, f"Session '{session_id}' not found")
- 
- 
+
+
 @app.get("/sessions/{session_id}/summary")
-def api_get_session_summary(session_id: str):
+def api_get_session_summary(session_id: str, request: Request):
     try:
-        return get_session_summary(session_id)
+        return get_session_summary(session_id, org_id=request.state.org_id)
     except FileNotFoundError:
         raise HTTPException(404, f"Session '{session_id}' not found")
- 
- 
+
+
 @app.delete("/sessions/{session_id}")
-def api_delete_session(session_id: str):
-    return delete_session(session_id)
- 
+def api_delete_session(session_id: str, request: Request):
+    return delete_session(session_id, org_id=request.state.org_id)
+
 @app.post("/sessions/{session_id}/revert")
-async def api_revert_session(session_id: str, body: dict = Body(...)):
+async def api_revert_session(session_id: str, request: Request, body: dict = Body(...)):
     target_stage = body.get("target_stage")
     if not target_stage or not (2 <= target_stage <= 6):
         raise HTTPException(400, "target_stage must be between 2 and 6")
     try:
-        revert_session(session_id, target_stage)
+        revert_session(session_id, target_stage, org_id=request.state.org_id)
         return {"message": f"Session reverted to stage {target_stage}"}
     except Exception as e:
         raise HTTPException(500, str(e))
@@ -344,42 +345,43 @@ async def api_revert_session(session_id: str, body: dict = Body(...)):
 # STAGE 2 — CLARIFICATION
 # ══════════════════════════════════════════════════════════════
 @app.post("/sessions/{session_id}/clarify/questions")
-def api_generate_questions(session_id: str):
+def api_generate_questions(session_id: str, request: Request):
     try:
-        questions = generate_clarifying_questions(session_id)
+        questions = generate_clarifying_questions(session_id, org_id=request.state.org_id)
         return {"questions": questions}
     except Exception as e:
         print(f"Admin /admin/costs/by-stage error: {e}")
         return {"error": str(e), "items": [], "data": []}
- 
- 
+
+
 @app.post("/sessions/{session_id}/clarify/answers")
-def api_save_answers(session_id: str, req: AnswersRequest):
+def api_save_answers(session_id: str, req: AnswersRequest, request: Request):
     try:
-        save_answers(session_id, req.answers)
+        save_answers(session_id, req.answers, org_id=request.state.org_id)
         return {"success": True}
     except Exception as e:
         print(f"Admin /admin/kb/breakdown error: {e}")
         return {"error": str(e), "items": [], "data": []}
- 
- 
+
+
 @app.post("/sessions/{session_id}/clarify/refine")
-def api_refine_problem(session_id: str):
+def api_refine_problem(session_id: str, request: Request):
     try:
-        refined = refine_problem_statement(session_id)
+        refined = refine_problem_statement(session_id, org_id=request.state.org_id)
         return {"problem_refined": refined}
     except Exception as e:
         print(f"Admin /admin/costs/by-session error: {e}")
         return {"error": str(e), "items": [], "data": []}
- 
- 
+
+
 @app.post("/sessions/{session_id}/clarify/approve")
-def api_approve_problem(session_id: str, req: ApproveProblemRequest):
+def api_approve_problem(session_id: str, req: ApproveProblemRequest, request: Request):
     try:
         session = approve_problem(
             session_id,
             approved=req.approved,
-            manual_edit=req.manual_edit
+            manual_edit=req.manual_edit,
+            org_id=request.state.org_id,
         )
         return session
     except Exception as e:
@@ -390,67 +392,67 @@ def api_approve_problem(session_id: str, req: ApproveProblemRequest):
 # STAGE 3 — ANALYSIS
 # ══════════════════════════════════════════════════════════════
 @app.post("/sessions/{session_id}/analyse")
-def api_run_analysis(session_id: str):
+def api_run_analysis(session_id: str, request: Request):
     try:
-        analysis = run_analysis(session_id)
+        analysis = run_analysis(session_id, org_id=request.state.org_id)
         return analysis
     except Exception as e:
         print(f"Admin /admin/prompts/versions error: {e}")
         return {"error": str(e), "items": [], "data": []}
- 
- 
+
+
 @app.post("/sessions/{session_id}/analyse/graph")
-def api_generate_graph(session_id: str):
+def api_generate_graph(session_id: str, request: Request):
     try:
-        graph = generate_system_graph(session_id)
+        graph = generate_system_graph(session_id, org_id=request.state.org_id)
         return {"graph": graph}
     except Exception as e:
         raise HTTPException(500, str(e))
- 
- 
+
+
 @app.post("/sessions/{session_id}/analyse/approve")
-def api_approve_analysis(session_id: str):
+def api_approve_analysis(session_id: str, request: Request):
     try:
-        approve_analysis(session_id)
+        approve_analysis(session_id, org_id=request.state.org_id)
         return {"success": True}
     except Exception as e:
         raise HTTPException(500, str(e))
- 
- 
+
+
 # ══════════════════════════════════════════════════════════════
 # STAGE 4 — GAP FILLING
 # ══════════════════════════════════════════════════════════════
 @app.post("/sessions/{session_id}/gaps/questions")
-def api_generate_gaps(session_id: str):
+def api_generate_gaps(session_id: str, request: Request):
     try:
-        questions = generate_gap_questions(session_id)
+        questions = generate_gap_questions(session_id, org_id=request.state.org_id)
         return {"questions": questions}
     except Exception as e:
         raise HTTPException(500, str(e))
- 
- 
+
+
 @app.post("/sessions/{session_id}/gaps/answers")
-def api_save_gap_answers(session_id: str, req: GapAnswersRequest):
+def api_save_gap_answers(session_id: str, req: GapAnswersRequest, request: Request):
     try:
-        save_gap_answers(session_id, req.answers)
+        save_gap_answers(session_id, req.answers, org_id=request.state.org_id)
         return {"success": True}
     except Exception as e:
         raise HTTPException(500, str(e))
- 
- 
+
+
 @app.post("/sessions/{session_id}/gaps/assess")
-def api_assess_clarity(session_id: str):
+def api_assess_clarity(session_id: str, request: Request):
     try:
-        assessment = assess_clarity(session_id)
+        assessment = assess_clarity(session_id, org_id=request.state.org_id)
         return assessment
     except Exception as e:
         raise HTTPException(500, str(e))
- 
- 
+
+
 @app.post("/sessions/{session_id}/gaps/confirm")
-def api_confirm_gaps(session_id: str):
+def api_confirm_gaps(session_id: str, request: Request):
     try:
-        confirm_and_advance(session_id)
+        confirm_and_advance(session_id, org_id=request.state.org_id)
         return {"success": True}
     except Exception as e:
         raise HTTPException(500, str(e))
@@ -460,52 +462,53 @@ def api_confirm_gaps(session_id: str):
 # STAGE 5 — REQUIREMENTS REVIEW
 # ══════════════════════════════════════════════════════════════
 @app.post("/sessions/{session_id}/requirements/extract")
-def api_extract_requirements(session_id: str):
+def api_extract_requirements(session_id: str, request: Request):
     try:
-        requirements = extract_requirements(session_id)
+        requirements = extract_requirements(session_id, org_id=request.state.org_id)
         return {"requirements": requirements}
     except Exception as e:
         raise HTTPException(500, str(e))
- 
- 
+
+
 @app.put("/sessions/{session_id}/requirements/update")
-def api_update_requirement(session_id: str, req: RequirementUpdateRequest):
+def api_update_requirement(session_id: str, req: RequirementUpdateRequest, request: Request):
     try:
         update_requirement_status(
-            session_id, req.req_id, req.status, req.edited_text or ""
+            session_id, req.req_id, req.status, req.edited_text or "",
+            org_id=request.state.org_id,
         )
         return {"success": True}
     except Exception as e:
         raise HTTPException(500, str(e))
- 
- 
+
+
 @app.put("/sessions/{session_id}/requirements/bulk")
-def api_bulk_update(session_id: str, req: BulkRequirementsRequest):
+def api_bulk_update(session_id: str, req: BulkRequirementsRequest, request: Request):
     try:
-        bulk_update_requirements(session_id, req.updates)
+        bulk_update_requirements(session_id, req.updates, org_id=request.state.org_id)
         return {"success": True}
     except Exception as e:
         raise HTTPException(500, str(e))
- 
- 
+
+
 @app.get("/sessions/{session_id}/requirements/summary")
-def api_requirements_summary(session_id: str):
-    return get_requirements_summary(session_id)
- 
- 
+def api_requirements_summary(session_id: str, request: Request):
+    return get_requirements_summary(session_id, org_id=request.state.org_id)
+
+
 @app.post("/sessions/{session_id}/requirements/advance")
-def api_advance_to_brd(session_id: str):
+def api_advance_to_brd(session_id: str, request: Request):
     try:
-        advance_to_brd(session_id)
+        advance_to_brd(session_id, org_id=request.state.org_id)
         return {"success": True}
     except ValueError as e:
         raise HTTPException(400, str(e))
     except Exception as e:
         raise HTTPException(500, str(e))
- 
- 
+
+
 @app.post("/sessions/{session_id}/requirements/validate")
-def api_validate_requirements(session_id: str):
+def api_validate_requirements(session_id: str, request: Request):
     """
     Feature 7 — Requirements Validation Agent.
     Runs 3-tool observe-plan-act loop:
@@ -516,7 +519,7 @@ def api_validate_requirements(session_id: str):
     Returns quality score, issues, suggested fixes, meeting conflicts.
     """
     try:
-        result = validate_requirements(session_id)
+        result = validate_requirements(session_id, org_id=request.state.org_id)
         return result
     except ValueError as e:
         raise HTTPException(400, str(e))
@@ -528,89 +531,89 @@ def api_validate_requirements(session_id: str):
 # STAGE 6 — BRD PREVIEW
 # ══════════════════════════════════════════════════════════════
 @app.post("/sessions/{session_id}/brd/generate")
-def api_generate_brd(session_id: str):
+def api_generate_brd(session_id: str, request: Request):
     try:
-        brd = generate_brd_preview(session_id)
+        brd = generate_brd_preview(session_id, org_id=request.state.org_id)
         return {"brd": brd}
     except Exception as e:
         raise HTTPException(500, str(e))
- 
- 
+
+
 @app.post("/sessions/{session_id}/brd/approve")
-def api_approve_brd(session_id: str):
+def api_approve_brd(session_id: str, request: Request):
     try:
-        approve_brd(session_id)
+        approve_brd(session_id, org_id=request.state.org_id)
         return {"success": True}
     except Exception as e:
         raise HTTPException(500, str(e))
- 
- 
+
+
 @app.post("/sessions/{session_id}/brd/regenerate")
-def api_regenerate_brd(session_id: str, req: FeedbackRequest):
+def api_regenerate_brd(session_id: str, req: FeedbackRequest, request: Request):
     try:
-        brd = regenerate_brd(session_id, req.feedback)
+        brd = regenerate_brd(session_id, req.feedback, org_id=request.state.org_id)
         return {"brd": brd}
     except Exception as e:
         raise HTTPException(500, str(e))
- 
- 
+
+
 @app.post("/sessions/{session_id}/brd/review")
-def api_review_brd(session_id: str):
+def api_review_brd(session_id: str, request: Request):
     """
     Feature 8 — BRD Review Agent.
     Multi-agent coordination: reads Feature 7 requirements quality score
     and adjusts BRD quality threshold accordingly.
- 
+
     Tool 1: Requirements traceability check (Python, no GPT)
     Tool 2: BRD quality check — 6 BABOK dimensions (GPT)
     Tool 3: Stakeholder alignment vs Stage 3 analysis (GPT)
     Reflection: rewrites weak sections until score >= threshold (max 3x).
- 
+
     Returns quality score, section issues, traceability gaps,
     stakeholder gaps, suggested section rewrites.
     """
     try:
-        result = review_brd(session_id)
+        result = review_brd(session_id, org_id=request.state.org_id)
         return result
     except ValueError as e:
         raise HTTPException(400, str(e))
     except Exception as e:
         raise HTTPException(500, str(e))
- 
- 
+
+
 # ══════════════════════════════════════════════════════════════
 # LANGGRAPH AGENTS — Feature 7 + 8 via LangGraph
 # ══════════════════════════════════════════════════════════════
- 
+
 @app.post("/sessions/{session_id}/requirements/validate/lg")
-def api_validate_requirements_lg(session_id: str):
+def api_validate_requirements_lg(session_id: str, request: Request):
     """LangGraph version of Requirements Validation Agent."""
     try:
-        result = lg_validate_requirements(session_id)
+        result = lg_validate_requirements(session_id, org_id=request.state.org_id)
         return result
     except ValueError as e:
         raise HTTPException(400, str(e))
     except Exception as e:
         raise HTTPException(500, str(e))
- 
- 
+
+
 @app.post("/sessions/{session_id}/brd/review/lg")
-def api_review_brd_lg(session_id: str):
+def api_review_brd_lg(session_id: str, request: Request):
     """LangGraph version of BRD Review Agent."""
     try:
-        result = lg_review_brd(session_id)
+        result = lg_review_brd(session_id, org_id=request.state.org_id)
         return result
     except ValueError as e:
         raise HTTPException(400, str(e))
     except Exception as e:
         raise HTTPException(500, str(e))
- 
- 
+
+
 @app.post("/sessions/{session_id}/agents/run-all")
-def api_run_all_agents(session_id: str):
+def api_run_all_agents(session_id: str, request: Request):
     """Run F7 then F8 sequentially in one LangGraph invocation."""
     try:
-        result = lg_run_both_agents(session_id)
+        result = lg_run_both_agents(session_id, org_id=request.state.org_id)
         return result
     except ValueError as e:
         raise HTTPException(400, str(e))
@@ -622,18 +625,18 @@ def api_run_all_agents(session_id: str):
 # STAGE 7 — USER STORIES
 # ══════════════════════════════════════════════════════════════
 @app.post("/sessions/{session_id}/stories/generate")
-def api_generate_stories(session_id: str):
+def api_generate_stories(session_id: str, request: Request):
     try:
-        stories = generate_user_stories(session_id)
+        stories = generate_user_stories(session_id, org_id=request.state.org_id)
         return {"stories": stories}
     except Exception as e:
         raise HTTPException(500, str(e))
- 
- 
+
+
 @app.get("/sessions/{session_id}/stories/csv")
-def api_export_csv(session_id: str):
+def api_export_csv(session_id: str, request: Request):
     try:
-        csv = export_stories_as_csv(session_id)
+        csv = export_stories_as_csv(session_id, org_id=request.state.org_id)
         return Response(
             content=csv,
             media_type="text/csv",
@@ -644,123 +647,127 @@ def api_export_csv(session_id: str):
         )
     except Exception as e:
         raise HTTPException(500, str(e))
- 
- 
+
+
 @app.post("/sessions/{session_id}/complete")
-def api_mark_complete(session_id: str):
+def api_mark_complete(session_id: str, request: Request):
     try:
-        mark_complete(session_id)
+        mark_complete(session_id, org_id=request.state.org_id)
         return {"success": True}
     except Exception as e:
         raise HTTPException(500, str(e))
- 
- 
+
+
 # ══════════════════════════════════════════════════════════════
 # KNOWLEDGE BASE — SYSTEMS
 # ══════════════════════════════════════════════════════════════
 @app.get("/systems")
-def api_get_systems():
-    return get_all_systems()
- 
- 
+def api_get_systems(request: Request):
+    return get_all_systems(org_id=request.state.org_id)
+
+
 @app.post("/systems/add")
-def api_add_system(req: SystemRequest):
-    result = add_system(req.system_name.strip())
+def api_add_system(req: SystemRequest, request: Request):
+    result = add_system(req.system_name.strip(), org_id=request.state.org_id)
     if not result["success"]:
         raise HTTPException(400, result["message"])
     return result
- 
- 
+
+
 @app.post("/systems/add-source")
-def api_add_source(req: SourceRequest):
-    result = add_source(req.system_name.strip(), req.source_type.strip())
+def api_add_source(req: SourceRequest, request: Request):
+    result = add_source(req.system_name.strip(), req.source_type.strip(), org_id=request.state.org_id)
     if not result["success"]:
         raise HTTPException(400, result["message"])
     return result
  
  
 @app.delete("/systems/{system_name}")
-def api_delete_system(system_name: str):
-    result = remove_system(system_name)
+def api_delete_system(system_name: str, request: Request):
+    result = remove_system(system_name, org_id=request.state.org_id)
     if not result["success"]:
         raise HTTPException(404, result["message"])
     return result
- 
- 
+
+
 # ══════════════════════════════════════════════════════════════
 # KNOWLEDGE BASE — DOCUMENT UPLOAD
 # ══════════════════════════════════════════════════════════════
 @app.post("/upload")
 async def api_upload_document(
+    request:     Request,
     file:        UploadFile = File(...),
     system_name: str        = Form(...),
-    source_type: str        = Form(...)
+    source_type: str        = Form(...),
 ):
     """Upload and index a document into Azure AI Search."""
+    org_id = request.state.org_id
     allowed = [".txt", ".docx", ".pdf"]
     ext = os.path.splitext(file.filename)[1].lower()
     if ext not in allowed:
         raise HTTPException(400, f"File type '{ext}' not supported. Use: {allowed}")
- 
-    systems = get_all_systems()
+
+    systems = get_all_systems(org_id=org_id)
     if system_name not in systems:
         raise HTTPException(400, f"System '{system_name}' not found")
     if source_type not in systems[system_name]:
         raise HTTPException(400, f"Source '{source_type}' not found in '{system_name}'")
- 
+
     file_bytes   = await file.read()
     file_size_kb = round(len(file_bytes) / 1024, 1)
     tmp = tempfile.NamedTemporaryFile(delete=False, suffix=ext)
- 
+
     try:
         tmp.write(file_bytes)
         tmp.flush()
         tmp.close()
- 
+
         chunks = load_and_index_document(
             file_path=tmp.name,
             system_name=system_name,
-            source_type=source_type
+            source_type=source_type,
+            org_id=org_id,
         )
- 
+
         record = register_document(
             document_name=file.filename,
             system_name=system_name,
             source_type=source_type,
             chunks=chunks,
-            file_size_kb=file_size_kb
+            file_size_kb=file_size_kb,
+            org_id=org_id,
         )
- 
+
         return {
             "success":  True,
             "message":  f"✅ Indexed {chunks} chunks from '{file.filename}'",
             "document": record
         }
- 
+
     except Exception as e:
         raise HTTPException(500, str(e))
- 
+
     finally:
         if os.path.exists(tmp.name):
             os.remove(tmp.name)
- 
- 
+
+
 # ══════════════════════════════════════════════════════════════
 # KNOWLEDGE BASE — DOCUMENT REGISTRY
 # ══════════════════════════════════════════════════════════════
 @app.get("/documents")
-def api_get_documents():
-    return get_registry_as_tree()
- 
- 
+def api_get_documents(request: Request):
+    return get_registry_as_tree(org_id=request.state.org_id)
+
+
 @app.get("/documents/list")
-def api_list_documents():
-    return get_all_documents()
- 
- 
+def api_list_documents(request: Request):
+    return get_all_documents(org_id=request.state.org_id)
+
+
 @app.delete("/documents/{doc_id}")
-def api_remove_document(doc_id: str):
-    result = delete_document(doc_id)
+def api_remove_document(doc_id: str, request: Request):
+    result = delete_document(doc_id, org_id=request.state.org_id)
     if not result["success"]:
         raise HTTPException(404, result["message"])
     return result
@@ -787,37 +794,40 @@ class StoreMeetingRequest(BaseModel):
  
 @app.post("/meetings/process")
 async def api_process_meeting(
+    request:     Request,
     file:        UploadFile = File(...),
     title:       str        = Form(...),
-    system_name: str        = Form("")
+    system_name: str        = Form(""),
 ):
+    org_id = request.state.org_id
     allowed = [".txt", ".vtt", ".docx", ".mp4"]
     ext = os.path.splitext(file.filename)[1].lower()
     if ext not in allowed:
         raise HTTPException(400, f"File type '{ext}' not supported. Use: {allowed}")
- 
+
     if not title.strip():
         raise HTTPException(400, "Meeting title is required")
- 
+
     file_bytes   = await file.read()
     file_size_kb = round(len(file_bytes) / 1024, 1)
- 
+
     tmp = tempfile.NamedTemporaryFile(delete=False, suffix=ext)
     try:
         tmp.write(file_bytes)
         tmp.flush()
         tmp.close()
- 
+
         meeting = process_meeting(
             title=title.strip(),
             system_name=system_name.strip() if system_name else "",
             file_path=tmp.name,
             filename=file.filename,
-            file_size_kb=file_size_kb
+            file_size_kb=file_size_kb,
+            org_id=org_id,
         )
- 
+
         return {"success": True, "meeting": meeting}
- 
+
     except ValueError as e:
         raise HTTPException(400, str(e))
     except Exception as e:
@@ -825,44 +835,46 @@ async def api_process_meeting(
     finally:
         if os.path.exists(tmp.name):
             os.remove(tmp.name)
- 
- 
+
+
 @app.get("/meetings")
-def api_list_meetings():
+def api_list_meetings(request: Request):
     try:
-        return list_meetings()
+        return list_meetings(org_id=request.state.org_id)
     except Exception as e:
         raise HTTPException(500, str(e))
- 
- 
+
+
 @app.get("/meetings/{meeting_id}")
-def api_get_meeting(meeting_id: str):
+def api_get_meeting(meeting_id: str, request: Request):
     try:
-        return load_meeting(meeting_id)
+        return load_meeting(meeting_id, org_id=request.state.org_id)
     except FileNotFoundError:
         raise HTTPException(404, f"Meeting '{meeting_id}' not found")
     except Exception as e:
         raise HTTPException(500, str(e))
- 
- 
+
+
 @app.post("/meetings/{meeting_id}/store")
-def api_store_meeting_to_kb(meeting_id: str, req: StoreMeetingRequest):
+def api_store_meeting_to_kb(meeting_id: str, req: StoreMeetingRequest, request: Request):
+    org_id = request.state.org_id
     if not req.system_name.strip():
         raise HTTPException(400, "system_name is required")
     if not req.source_type.strip():
         raise HTTPException(400, "source_type is required")
- 
-    systems = get_all_systems()
+
+    systems = get_all_systems(org_id=org_id)
     if req.system_name not in systems:
         raise HTTPException(400, f"System '{req.system_name}' not found")
     if req.source_type not in systems[req.system_name]:
         raise HTTPException(400, f"Source '{req.source_type}' not found in '{req.system_name}'")
- 
+
     try:
         meeting = store_meeting_to_kb(
             meeting_id=meeting_id,
             system_name=req.system_name.strip(),
-            source_type=req.source_type.strip()
+            source_type=req.source_type.strip(),
+            org_id=org_id,
         )
         return {
             "success": True,
@@ -888,10 +900,10 @@ from observability import (
  
  
 @app.get("/admin/overview")
-def api_admin_overview():
+def api_admin_overview(request: Request):
     """High-level platform stats: session/meeting counts, KB size, cumulative cost."""
     try:
-        return get_platform_overview()
+        return get_platform_overview(org_id=request.state.org_id)
     except Exception as e:
         # Return partial data rather than crashing to HTML
         print(f"Admin overview error: {e}")
@@ -902,71 +914,75 @@ def api_admin_overview():
             "cumulative_cost_usd": 0.0,
             "error": str(e)
         }
- 
- 
+
+
 @app.get("/admin/costs/by-stage")
-def api_admin_costs_by_stage():
+def api_admin_costs_by_stage(request: Request):
     """Token usage + cost broken down by pipeline stage, aggregated across all sessions."""
     try:
-        return get_cost_by_stage()
+        return get_cost_by_stage(org_id=request.state.org_id)
     except Exception as e:
         raise HTTPException(500, str(e))
- 
- 
+
+
 @app.get("/admin/costs/by-session")
-def api_admin_costs_by_session():
+def api_admin_costs_by_session(request: Request):
     """Per-session cost table, sorted by total cost descending."""
     try:
-        return get_session_cost_table()
+        return get_session_cost_table(org_id=request.state.org_id)
     except Exception as e:
         raise HTTPException(500, str(e))
- 
- 
+
+
 @app.get("/admin/kb/breakdown")
-def api_admin_kb_breakdown():
+def api_admin_kb_breakdown(request: Request):
     """KB stats broken down by System → Source → doc count, chunk count, size."""
     try:
-        return get_kb_breakdown()
+        return get_kb_breakdown(org_id=request.state.org_id)
     except Exception as e:
         raise HTTPException(500, str(e))
- 
- 
+
+
 @app.get("/admin/prompts/versions")
-def api_admin_prompt_versions():
+def api_admin_prompt_versions(request: Request):
     """Which prompt versions are in use across recent sessions + meetings."""
     try:
-        return get_prompt_versions()
+        return get_prompt_versions(org_id=request.state.org_id)
     except Exception as e:
         raise HTTPException(500, str(e))
- 
- 
+
+
 # ══════════════════════════════════════════════════════════════
 # EVALUATION FRAMEWORK — Feature 9
 # ══════════════════════════════════════════════════════════════
- 
+
 class ABTestRequest(BaseModel):
     stage_key: str
     version_a: str
     version_b: str
     max_cases: int = 8
- 
- 
+
+
 @app.post("/eval/run")
-def api_run_evaluation(use_llm_judge: bool = False, max_cases: Optional[int] = None):
+def api_run_evaluation(request: Request, use_llm_judge: bool = False, max_cases: Optional[int] = None):
     """
     Run offline evaluation against the golden requirements dataset.
     use_llm_judge=True adds LLM-as-Judge groundedness check (costs tokens).
     use_llm_judge=False uses lexical overlap only (free, faster).
     """
     try:
-        result = run_evaluation(use_llm_judge=use_llm_judge, max_cases=max_cases)
+        result = run_evaluation(
+            use_llm_judge=use_llm_judge,
+            max_cases=max_cases,
+            org_id=request.state.org_id,
+        )
         return result
     except Exception as e:
         raise HTTPException(500, str(e))
- 
- 
+
+
 @app.post("/eval/ab-test")
-def api_run_ab_test(req: ABTestRequest):
+def api_run_ab_test(req: ABTestRequest, request: Request):
     """
     Capture baseline metrics for A/B prompt version comparison.
     Run with version_a first, update prompts.json, run again with version_b.
@@ -976,20 +992,21 @@ def api_run_ab_test(req: ABTestRequest):
             stage_key=req.stage_key,
             version_a=req.version_a,
             version_b=req.version_b,
-            max_cases=req.max_cases
+            max_cases=req.max_cases,
+            org_id=request.state.org_id,
         )
         return result
     except ValueError as e:
         raise HTTPException(400, str(e))
     except Exception as e:
         raise HTTPException(500, str(e))
- 
- 
+
+
 @app.get("/eval/results")
-def api_get_eval_results():
+def api_get_eval_results(request: Request):
     """Return the most recent evaluation results from disk."""
     try:
-        results = get_latest_results()
+        results = get_latest_results(org_id=request.state.org_id)
         if not results:
             return {"message": "No evaluation results yet. Run POST /eval/run first."}
         return results
@@ -998,13 +1015,14 @@ def api_get_eval_results():
  
  
 @app.get("/sessions/{session_id}/eval/hallucination")
-def api_get_hallucination_scores(session_id: str):
+def api_get_hallucination_scores(session_id: str, request: Request):
     """
     Return groundedness scores for all requirements in a session.
     Shows which requirements may contain unsupported claims.
     """
+    org_id = request.state.org_id
     try:
-        session = load_session(session_id)
+        session = load_session(session_id, org_id=org_id)
         stored = session.get("req_groundedness_scores")
         if stored:
             return {
@@ -1021,9 +1039,12 @@ def api_get_hallucination_scores(session_id: str):
             raise HTTPException(400, "No requirements found in session")
         from retriever import get_relevant_context, format_context_with_citations
         problem = session.get("problem_refined") or session.get("problem_raw", "")
-        results = get_relevant_context(problem, top_k=5,
-                                       system_name=session.get("system_filter"),
-                                       source_type=session.get("source_filter"))
+        results = get_relevant_context(
+            problem, top_k=5,
+            system_name=session.get("system_filter"),
+            source_type=session.get("source_filter"),
+            org_id=org_id,
+        )
         kb_ctx = ""
         if results:
             kb_ctx, _ = format_context_with_citations(results)
