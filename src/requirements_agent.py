@@ -58,13 +58,13 @@ MAX_ITERATIONS    = 3    # Max reflection loops before giving up
 # PUBLIC ENTRY POINT
 # ══════════════════════════════════════════════════════════════
  
-def validate_requirements(session_id: str) -> dict:
+def validate_requirements(session_id: str, org_id: str = None) -> dict:
     """
     Main agent entry point.
     Validates all non-rejected requirements in the session.
     Returns full validation result dict.
     """
-    session      = load_session(session_id)
+    session      = load_session(session_id, org_id=org_id)
     requirements = [
         r for r in session.get("requirements", [])
         if r.get("status") != "rejected"
@@ -236,7 +236,7 @@ def validate_requirements(session_id: str) -> dict:
     # Runs lexical groundedness check on final requirements
     # (after reflection improvements applied).
     # Zero cost — pure Python, no GPT call.
-    session_for_hall = load_session(session_id)
+    session_for_hall = load_session(session_id, org_id=org_id)
     qa_ctx = format_qa_context(session_for_hall)
     hall_result = check_requirements_batch(
         requirements=working_reqs,
@@ -263,7 +263,7 @@ def validate_requirements(session_id: str) -> dict:
         "req_hallucination_rate":      hall_result["hallucination_rate"],
         "req_hallucination_verdict":   hall_result["overall_verdict"],
         "req_hallucination_warning":   hall_result["session_warning"],
-    })
+    }, org_id=org_id)
  
     print(f"\n✅ Agent complete: score={final_score}, iterations={final_iteration}, "
           f"fixes={len(suggested_fixes)}, cost=${total_cost:.6f}")
@@ -291,14 +291,15 @@ def _tool_kb_search(requirements: list, session: dict) -> str:
             question=query,
             top_k=5,
             system_name=session.get("system_filter"),
-            source_type=session.get("source_filter")
+            source_type=session.get("source_filter"),
+            org_id=session.get("org_id"),
         )
         if not results:
             return "No relevant knowledge base content found."
- 
+
         context, _ = format_context_with_citations(results)
         return context
- 
+
     except Exception as e:
         print(f"   ⚠️  KB search failed: {e} — continuing without KB context")
         return "Knowledge base search unavailable."
@@ -372,8 +373,8 @@ def _tool_meeting_crossref(requirements: list, session: dict) -> tuple:
     Returns (result_dict, tokens_in, tokens_out, cost).
     If no meetings exist, returns empty result with zero cost.
     """
-    # Load all meeting decisions
-    meeting_decisions_text = _load_meeting_decisions()
+    # Load all meeting decisions (scoped to this session's org)
+    meeting_decisions_text = _load_meeting_decisions(org_id=session.get("org_id"))
  
     if not meeting_decisions_text:
         print("   No meeting records found — skipping cross-reference")
@@ -488,20 +489,21 @@ def _tool_reflection(
 # HELPERS
 # ══════════════════════════════════════════════════════════════
  
-def _load_meeting_decisions() -> str:
+def _load_meeting_decisions(org_id: str = None) -> str:
     """
     Load all meeting decisions from Azure Blob and format for prompt.
-    Returns empty string if no meetings exist.
+    Returns empty string if no meetings exist. Scoped by org_id so an
+    agent run under org X never sees org Y's meeting records.
     """
     try:
-        meetings_list = list_meetings()
+        meetings_list = list_meetings(org_id=org_id)
         if not meetings_list:
             return ""
- 
+
         lines = []
         for m_summary in meetings_list[:10]:  # cap at 10 most recent meetings
             try:
-                meeting = load_meeting(m_summary["meeting_id"])
+                meeting = load_meeting(m_summary["meeting_id"], org_id=org_id)
                 decisions = meeting.get("decisions", [])
                 if decisions:
                     lines.append(f"\n[Meeting: {meeting.get('title', 'Untitled')}]")

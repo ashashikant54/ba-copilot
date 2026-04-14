@@ -67,12 +67,12 @@ MAX_ITERATIONS        = 3    # Max reflection loops
 # PUBLIC ENTRY POINT
 # ══════════════════════════════════════════════════════════════
  
-def review_brd(session_id: str) -> dict:
+def review_brd(session_id: str, org_id: str = None) -> dict:
     """
     Main agent entry point. Reviews the current brd_draft in the session.
     Returns full review result dict.
     """
-    session = load_session(session_id)
+    session = load_session(session_id, org_id=org_id)
  
     brd_text = session.get("brd_draft", "").strip()
     if not brd_text:
@@ -223,7 +223,7 @@ def review_brd(session_id: str) -> dict:
         "brd_review_tokens_in":  total_tokens_in,
         "brd_review_tokens_out": total_tokens_out,
         "brd_review_cost_usd":   round(total_cost, 6),
-    })
+    }, org_id=org_id)
  
     print(f"\n✅ BRD Review Agent complete: "
           f"score={final_score}, iterations={final_iteration}, "
