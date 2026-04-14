@@ -157,7 +157,7 @@ def kb_search_node(state: RequirementsAgentState) -> dict:
     Returns kb_context string added to state.
     No GPT call — pure Python retrieval.
     """
-    session = load_session(state["session_id"])
+    session = load_session(state["session_id"], org_id=state.get("org_id"))
  
     with tool_span("kb_search", state["session_id"]) as span:
         print(f"\n🔧 [LangGraph] Tool 1: KB Search")
@@ -180,7 +180,7 @@ def meeting_crossref_node(state: RequirementsAgentState) -> dict:
     Compare to hand-rolled: it ran in parallel with the loop.
     In LangGraph: explicit sequential placement before the loop.
     """
-    session = load_session(state["session_id"])
+    session = load_session(state["session_id"], org_id=state.get("org_id"))
  
     with tool_span("meeting_crossref", state["session_id"]) as span:
         print(f"\n🔧 [LangGraph] Tool 3: Meeting Cross-reference")
@@ -219,7 +219,7 @@ def babok_check_node(state: RequirementsAgentState) -> dict:
     The iteration counter is read from state — no loop variable needed.
     LangGraph manages the loop by routing back to this node.
     """
-    session = load_session(state["session_id"])
+    session = load_session(state["session_id"], org_id=state.get("org_id"))
  
     iteration = state["iteration"]
     with tool_span("babok_check", state["session_id"], iteration=iteration) as span:
@@ -267,7 +267,7 @@ def reflection_node(state: RequirementsAgentState) -> dict:
     In LangGraph it's a separate node — the loop is expressed
     as edges (babok_check → reflect → babok_check).
     """
-    session = load_session(state["session_id"])
+    session = load_session(state["session_id"], org_id=state.get("org_id"))
  
     issues_text = _extract_issues_text(state["babok_result"])
  
@@ -355,7 +355,7 @@ def compile_result_node(state: RequirementsAgentState) -> dict:
         "agent_tokens_in":             state["total_tokens_in"],
         "agent_tokens_out":            state["total_tokens_out"],
         "agent_cost_usd":              round(state["total_cost"], 6),
-    })
+    }, org_id=state.get("org_id"))
  
     print(f"\n✅ [LangGraph] F7 complete: score={final_score}, "
           f"fixes={len(suggested_fixes)}, cost=${state['total_cost']:.6f}")

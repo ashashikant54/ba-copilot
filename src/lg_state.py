@@ -51,6 +51,7 @@ class RequirementsAgentState(TypedDict):
  
     # ── Inputs (set before subgraph runs) ─────────────────────
     session_id:          str
+    org_id:              Optional[str]   # Phase 2 Sprint 4 — tenant scope
     requirements:        List[dict]   # full requirement objects from session
     system_filter:       Optional[str]
     source_filter:       Optional[str]
@@ -99,6 +100,7 @@ class BRDReviewAgentState(TypedDict):
  
     # ── Inputs ─────────────────────────────────────────────────
     session_id:          str
+    org_id:              Optional[str]   # Phase 2 Sprint 4 — tenant scope
     brd_text:            str          # current brd_draft from session
     approved_reqs:       List[dict]   # accepted + edited requirements
     analysis_stakeholders: List[dict] # from Stage 3 session data
@@ -158,6 +160,7 @@ class CoAnalyticaState(TypedDict):
  
     # ── Session context ─────────────────────────────────────────
     session_id:       str
+    org_id:           Optional[str]    # Phase 2 Sprint 4 — tenant scope
     agent_to_run:     str    # "validate_requirements" | "review_brd" | "both"
  
     # ── Feature 7 outputs (written by requirements agent) ──────

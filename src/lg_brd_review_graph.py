@@ -172,7 +172,7 @@ def brd_quality_node(state: BRDReviewAgentState) -> dict:
     Reads current_brd — updated by brd_reflection_node each
     iteration so each pass evaluates the improved BRD.
     """
-    session = load_session(state["session_id"])
+    session = load_session(state["session_id"], org_id=state.get("org_id"))
  
     brd_iteration = state["brd_iteration"]
     with tool_span("brd_quality_check", state["session_id"],
@@ -220,7 +220,7 @@ def brd_reflection_node(state: BRDReviewAgentState) -> dict:
     Only reached when brd_quality_score < effective_threshold.
     Applies section rewrites to current_brd and increments iteration.
     """
-    session = load_session(state["session_id"])
+    session = load_session(state["session_id"], org_id=state.get("org_id"))
  
     issues_text = _extract_section_issues_text(state["quality_result"])
     with tool_span("brd_reflection", state["session_id"],
@@ -306,7 +306,7 @@ def compile_brd_result_node(state: BRDReviewAgentState) -> dict:
         "brd_review_tokens_in":  state["brd_tokens_in"],
         "brd_review_tokens_out": state["brd_tokens_out"],
         "brd_review_cost_usd":   round(state["brd_cost"], 6),
-    })
+    }, org_id=state.get("org_id"))
  
     print(f"\n✅ [LangGraph] F8 complete: score={final_score}, "
           f"fixes={len(suggested_fixes)}, cost=${state['brd_cost']:.6f}")

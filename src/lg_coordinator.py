@@ -126,17 +126,18 @@ def run_requirements_agent(state: CoAnalyticaState) -> dict:
     coordinator's state schema.
     ─────────────────────────────────────────────────────────
     """
-    session = load_session(state["session_id"])
- 
+    session = load_session(state["session_id"], org_id=state.get("org_id"))
+
     # Get non-rejected requirements
     requirements = [
         r for r in session.get("requirements", [])
         if r.get("status") != "rejected"
     ]
- 
+
     # Build F7 subgraph input state
     f7_input: RequirementsAgentState = {
         "session_id":     state["session_id"],
+        "org_id":         state.get("org_id"),
         "requirements":   requirements,
         "system_filter":  session.get("system_filter"),
         "source_filter":  session.get("source_filter"),
@@ -186,21 +187,22 @@ def run_brd_review_agent(state: CoAnalyticaState) -> dict:
       F8 uses it to adjust its threshold
     ─────────────────────────────────────────────────────────
     """
-    session = load_session(state["session_id"])
- 
+    session = load_session(state["session_id"], org_id=state.get("org_id"))
+
     brd_text = session.get("brd_draft", "").strip()
     if not brd_text:
         return {"error": "No BRD draft found — generate BRD preview first"}
- 
+
     approved_reqs = [
         r for r in session.get("requirements", [])
         if r.get("status") in ("accepted", "edited")
     ]
- 
+
     # Build F8 subgraph input state
     # Note: f7_quality_score is passed in from CoAnalyticaState
     f8_input: BRDReviewAgentState = {
         "session_id":          state["session_id"],
+        "org_id":              state.get("org_id"),
         "brd_text":            brd_text,
         "approved_reqs":       approved_reqs,
         "analysis_stakeholders": session.get("impacted_stakeholders", []),
@@ -332,7 +334,7 @@ def _get_coordinator():
     return _coordinator
  
  
-def lg_validate_requirements(session_id: str) -> dict:
+def lg_validate_requirements(session_id: str, org_id: str = None) -> dict:
     """
     LangGraph version of validate_requirements().
     Called by POST /sessions/{id}/requirements/validate/lg
@@ -342,6 +344,7 @@ def lg_validate_requirements(session_id: str) -> dict:
     with agent_span("requirements_validation", session_id) as span:
         result = _get_coordinator().invoke({
             "session_id":       session_id,
+            "org_id":           org_id,
             "agent_to_run":     "validate_requirements",
             "f7_result":        None,
             "f7_quality_score": None,
@@ -359,21 +362,22 @@ def lg_validate_requirements(session_id: str) -> dict:
         return f7
  
  
-def lg_review_brd(session_id: str) -> dict:
+def lg_review_brd(session_id: str, org_id: str = None) -> dict:
     """
     LangGraph version of review_brd().
     Called by POST /sessions/{id}/brd/review/lg
     """
     from session_manager import load_session as _ls
-    session  = _ls(session_id)
+    session  = _ls(session_id, org_id=org_id)
     f7_score = session.get("agent_validation_score")
- 
+
     with agent_span("brd_review", session_id) as span:
         if f7_score is not None:
             span.set_attribute("coanalytica.f7.quality_score", f7_score)
- 
+
         result = _get_coordinator().invoke({
             "session_id":       session_id,
+            "org_id":           org_id,
             "agent_to_run":     "review_brd",
             "f7_result":        None,
             "f7_quality_score": f7_score,
@@ -391,7 +395,7 @@ def lg_review_brd(session_id: str) -> dict:
         return f8
  
  
-def lg_run_both_agents(session_id: str) -> dict:
+def lg_run_both_agents(session_id: str, org_id: str = None) -> dict:
     """
     Run F7 then F8 sequentially in one graph invocation.
     Called by POST /sessions/{id}/agents/run-all
@@ -401,6 +405,7 @@ def lg_run_both_agents(session_id: str) -> dict:
     with agent_span("multi_agent_pipeline", session_id) as span:
         result = _get_coordinator().invoke({
             "session_id":       session_id,
+            "org_id":           org_id,
             "agent_to_run":     "both",
             "f7_result":        None,
             "f7_quality_score": None,
