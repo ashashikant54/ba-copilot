@@ -38,13 +38,13 @@ client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
  
  
 # ── Functions ──────────────────────────────────────────────────
-def extract_requirements(session_id):
+def extract_requirements(session_id, org_id=None):
     """
     Stage 5a: Extract all business requirements from the
     accumulated context across Stages 2, 3 and 4.
     Returns list of requirement objects.
     """
-    session = load_session(session_id)
+    session = load_session(session_id, org_id=org_id)
     problem = session.get("problem_refined") or session.get("problem_raw")
  
     # Format systems
@@ -90,7 +90,8 @@ def extract_requirements(session_id):
         question=problem,
         top_k=5,
         system_name=session.get("system_filter"),
-        source_type=session.get("source_filter")
+        source_type=session.get("source_filter"),
+        org_id=org_id,
     )
     kb_context = "No relevant documents found."
     if results:
@@ -157,7 +158,7 @@ def extract_requirements(session_id):
         "requirements_tokens_in":      input_tokens,
         "requirements_tokens_out":     output_tokens,
         "requirements_cost_usd":       call_cost,
-    })
+    }, org_id=org_id)
  
     print(f"✅ Extracted {len(requirements)} requirements")
  
@@ -172,25 +173,25 @@ def extract_requirements(session_id):
     return requirements
  
  
-def update_requirement_status(session_id, req_id, status, edited_text=""):
+def update_requirement_status(session_id, req_id, status, edited_text="", org_id=None):
     """
     Stage 5b: BA accepts, edits or rejects a single requirement.
- 
+
     status options:
       "accepted" — BA approves as-is
       "edited"   — BA modified the text (edited_text contains new version)
       "rejected" — BA removes this requirement from the BRD
     """
-    session      = load_session(session_id)
+    session      = load_session(session_id, org_id=org_id)
     requirements = session.get("requirements", [])
- 
+
     for req in requirements:
         if req["id"] == req_id:
             req["status"]      = status
             req["edited_text"] = edited_text
             break
- 
-    update_session(session_id, {"requirements": requirements})
+
+    update_session(session_id, {"requirements": requirements}, org_id=org_id)
  
     label = {
         "accepted": "✅ Accepted",
@@ -202,30 +203,30 @@ def update_requirement_status(session_id, req_id, status, edited_text=""):
     return requirements
  
  
-def bulk_update_requirements(session_id, updates):
+def bulk_update_requirements(session_id, updates, org_id=None):
     """
     Update multiple requirements at once.
     updates = [{"id": "REQ-001", "status": "accepted", "edited_text": ""}]
     """
-    session      = load_session(session_id)
+    session      = load_session(session_id, org_id=org_id)
     requirements = session.get("requirements", [])
- 
+
     update_map = {u["id"]: u for u in updates}
- 
+
     for req in requirements:
         if req["id"] in update_map:
             u = update_map[req["id"]]
             req["status"]      = u.get("status", req["status"])
             req["edited_text"] = u.get("edited_text", req["edited_text"])
- 
-    update_session(session_id, {"requirements": requirements})
+
+    update_session(session_id, {"requirements": requirements}, org_id=org_id)
     print(f"✅ Updated {len(updates)} requirements")
     return requirements
- 
- 
-def get_requirements_summary(session_id):
+
+
+def get_requirements_summary(session_id, org_id=None):
     """Return a count summary of requirement statuses."""
-    session      = load_session(session_id)
+    session      = load_session(session_id, org_id=org_id)
     requirements = session.get("requirements", [])
  
     summary = {
@@ -240,27 +241,27 @@ def get_requirements_summary(session_id):
     return summary
  
  
-def advance_to_brd(session_id):
+def advance_to_brd(session_id, org_id=None):
     """
     BA clicks Generate BRD — advance to Stage 6.
     Only allowed when all requirements have been reviewed.
     """
-    summary = get_requirements_summary(session_id)
- 
+    summary = get_requirements_summary(session_id, org_id=org_id)
+
     if not summary["all_reviewed"]:
         raise ValueError(
             f"{summary['pending']} requirement(s) still pending review. "
             "Please Accept, Edit or Reject all requirements before generating the BRD."
         )
- 
+
     accepted = summary["accepted"] + summary["edited"]
     if accepted == 0:
         raise ValueError(
             "No requirements accepted. "
             "Please accept at least one requirement to generate a BRD."
         )
- 
-    update_session(session_id, {"stage": STAGE_BRD_PREVIEW})
+
+    update_session(session_id, {"stage": STAGE_BRD_PREVIEW}, org_id=org_id)
     print(f"✅ All requirements reviewed — advancing to Stage 6: BRD Preview")
     print(f"   Accepted: {summary['accepted']} | "
           f"Edited: {summary['edited']} | "

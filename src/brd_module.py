@@ -40,12 +40,12 @@ client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
  
  
 # ── Functions ──────────────────────────────────────────────────
-def generate_brd_preview(session_id):
+def generate_brd_preview(session_id, org_id=None):
     """
     Stage 6a: Generate BRD from approved requirements only.
     Returns the BRD markdown string.
     """
-    session = load_session(session_id)
+    session = load_session(session_id, org_id=org_id)
     problem = session.get("problem_refined") or session.get("problem_raw")
  
     # Get ONLY accepted and edited requirements
@@ -88,7 +88,8 @@ def generate_brd_preview(session_id):
         question=problem,
         top_k=3,
         system_name=session.get("system_filter"),
-        source_type=session.get("source_filter")
+        source_type=session.get("source_filter"),
+        org_id=org_id,
     )
     kb_context = "No additional context from knowledge base."
     if results:
@@ -146,58 +147,58 @@ def generate_brd_preview(session_id):
         "brd_tokens_in":      input_tokens,
         "brd_tokens_out":     output_tokens,
         "brd_cost_usd":       call_cost,
-    })
- 
+    }, org_id=org_id)
+
     print(f"✅ BRD preview generated ({len(brd)} chars)")
     return brd
- 
- 
-def approve_brd(session_id):
+
+
+def approve_brd(session_id, org_id=None):
     """
     Stage 6b: BA approves the BRD preview.
     Saves as final BRD and advances to Stage 7: User Stories.
     """
-    session = load_session(session_id)
+    session = load_session(session_id, org_id=org_id)
     brd     = session.get("brd_draft", "")
- 
+
     if not brd:
         raise ValueError("No BRD draft found. Generate preview first.")
- 
+
     update_session(session_id, {
         "brd_final":    brd,
         "brd_approved": True,
         "stage":        STAGE_USER_STORIES
-    })
- 
+    }, org_id=org_id)
+
     print(f"✅ BRD approved — advancing to Stage 7: User Stories")
     return brd
- 
- 
-def regenerate_brd(session_id, feedback):
+
+
+def regenerate_brd(session_id, feedback, org_id=None):
     """
     BA requests changes to the BRD.
     Adds feedback context and regenerates.
     """
-    session = load_session(session_id)
+    session = load_session(session_id, org_id=org_id)
     problem = session.get("problem_refined") or session.get("problem_raw")
- 
+
     print(f"🔄 Regenerating BRD with BA feedback...")
- 
+
     # Append feedback to problem context for regeneration
     enhanced_problem = (
         f"{problem}\n\n"
         f"BA FEEDBACK ON PREVIOUS DRAFT:\n{feedback}"
     )
- 
+
     # Temporarily update problem for this generation
     original_refined = session.get("problem_refined", "")
-    update_session(session_id, {"problem_refined": enhanced_problem})
- 
-    brd = generate_brd_preview(session_id)
- 
+    update_session(session_id, {"problem_refined": enhanced_problem}, org_id=org_id)
+
+    brd = generate_brd_preview(session_id, org_id=org_id)
+
     # Restore original refined problem
-    update_session(session_id, {"problem_refined": original_refined})
- 
+    update_session(session_id, {"problem_refined": original_refined}, org_id=org_id)
+
     print(f"✅ BRD regenerated with feedback applied")
     return brd
  

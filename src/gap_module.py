@@ -40,12 +40,12 @@ client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
  
  
 # ── Functions ──────────────────────────────────────────────────
-def generate_gap_questions(session_id):
+def generate_gap_questions(session_id, org_id=None):
     """
     Stage 4a: Analyse the Stage 3 output and generate
     targeted gap questions. Returns list of question objects.
     """
-    session = load_session(session_id)
+    session = load_session(session_id, org_id=org_id)
     problem = session.get("problem_refined") or session.get("problem_raw")
  
     # Format systems for prompt
@@ -160,21 +160,21 @@ def generate_gap_questions(session_id):
         "gap_tokens_in":      input_tokens,
         "gap_tokens_out":     output_tokens,
         "gap_cost_usd":       call_cost,
-    })
- 
+    }, org_id=org_id)
+
     print(f"✅ Generated {len(questions)} gap questions")
     return questions
- 
- 
-def save_gap_answers(session_id, answers):
+
+
+def save_gap_answers(session_id, answers, org_id=None):
     """
     Stage 4b: Save BA's answers to gap questions.
     answers = {"G1": "answer", "G2": "answer"}
     """
-    session  = load_session(session_id)
+    session  = load_session(session_id, org_id=org_id)
     existing = session.get("gap_answers", {})
     existing.update(answers)
-    update_session(session_id, {"gap_answers": existing})
+    update_session(session_id, {"gap_answers": existing}, org_id=org_id)
  
     answered = sum(1 for v in existing.values() if v.strip())
     total    = len(session.get("gap_questions", []))
@@ -182,12 +182,12 @@ def save_gap_answers(session_id, answers):
     return existing
  
  
-def assess_clarity(session_id):
+def assess_clarity(session_id, org_id=None):
     """
     Stage 4c: AI assesses how much clarity has been achieved.
     Returns clarity assessment dict with score and recommendation.
     """
-    session = load_session(session_id)
+    session = load_session(session_id, org_id=org_id)
     problem = session.get("problem_refined") or session.get("problem_raw")
  
     gap_questions = session.get("gap_questions", [])
@@ -260,14 +260,14 @@ def assess_clarity(session_id):
         "clarity_tokens_in":      input_tokens,
         "clarity_tokens_out":     output_tokens,
         "clarity_cost_usd":       call_cost,
-    })
- 
+    }, org_id=org_id)
+
     print(f"✅ Clarity score: {assessment.get('clarity_score')}% — "
           f"{assessment.get('recommendation')}")
     return assessment
- 
- 
-def confirm_and_advance(session_id):
+
+
+def confirm_and_advance(session_id, org_id=None):
     """
     Stage 4d: BA confirms they have enough clarity to proceed.
     This is the Human-in-the-Loop checkpoint.
@@ -276,7 +276,7 @@ def confirm_and_advance(session_id):
     update_session(session_id, {
         "clarity_confirmed": True,
         "stage":             STAGE_REQUIREMENTS
-    })
+    }, org_id=org_id)
     print(f"✅ BA confirmed clarity — advancing to Stage 5: Requirements")
  
  

@@ -37,20 +37,21 @@ client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
  
  
 # ── Functions ──────────────────────────────────────────────────
-def generate_clarifying_questions(session_id):
+def generate_clarifying_questions(session_id, org_id=None):
     """
     Stage 2a: Generate clarifying questions grounded in
     what the knowledge base does and does not contain.
     """
-    session = load_session(session_id)
+    session = load_session(session_id, org_id=org_id)
     problem = session["problem_raw"]
- 
+
     print(f"\n🔍 Searching knowledge base for context...")
     results = get_relevant_context(
         question=problem,
         top_k=3,
         system_name=session.get("system_filter"),
-        source_type=session.get("source_filter")
+        source_type=session.get("source_filter"),
+        org_id=org_id,
     )
  
     context = "No relevant documents found in the knowledge base."
@@ -110,31 +111,31 @@ def generate_clarifying_questions(session_id):
         "clarification_tokens_in":      input_tokens,
         "clarification_tokens_out":     output_tokens,
         "clarification_cost_usd":       call_cost,
-    })
- 
+    }, org_id=org_id)
+
     print(f"✅ Generated {len(questions)} clarifying questions")
     return questions
- 
- 
-def save_answers(session_id, answers):
+
+
+def save_answers(session_id, answers, org_id=None):
     """
     Stage 2b: Save BA's answers.
     answers = {"Q1": "answer text", "Q2": "answer text"}
     """
-    session  = load_session(session_id)
+    session  = load_session(session_id, org_id=org_id)
     existing = session.get("clarifying_answers", {})
     existing.update(answers)
-    update_session(session_id, {"clarifying_answers": existing})
+    update_session(session_id, {"clarifying_answers": existing}, org_id=org_id)
     print(f"✅ Saved {len(answers)} answer(s)")
     return existing
- 
- 
-def refine_problem_statement(session_id):
+
+
+def refine_problem_statement(session_id, org_id=None):
     """
     Stage 2c: Rewrite the problem as a precise,
     measurable statement using only what the BA provided.
     """
-    session   = load_session(session_id)
+    session   = load_session(session_id, org_id=org_id)
     problem   = session["problem_raw"]
     questions = session.get("clarifying_questions", [])
     answers   = session.get("clarifying_answers", {})
@@ -149,7 +150,8 @@ def refine_problem_statement(session_id):
     results = get_relevant_context(
         problem, top_k=3,
         system_name=session.get("system_filter"),
-        source_type=session.get("source_filter")
+        source_type=session.get("source_filter"),
+        org_id=org_id,
     )
     context = "No relevant documents found."
     if results:
@@ -200,28 +202,28 @@ def refine_problem_statement(session_id):
         "refine_tokens_in":      input_tokens,
         "refine_tokens_out":     output_tokens,
         "refine_cost_usd":       call_cost,
-    })
- 
+    }, org_id=org_id)
+
     print(f"✅ Problem statement refined")
     return refined
- 
- 
-def approve_problem(session_id, approved=True, manual_edit=None):
+
+
+def approve_problem(session_id, approved=True, manual_edit=None, org_id=None):
     """
     Stage 2d: BA approves or manually edits the refined problem.
     Advances to Stage 3 when approved.
     """
     updates = {"problem_approved": approved}
- 
+
     if manual_edit:
         updates["problem_refined"] = manual_edit
         print(f"✅ Problem updated with BA's edit")
- 
+
     if approved:
         updates["stage"] = STAGE_ANALYSIS
         print(f"✅ Problem approved — advancing to Stage 3: Analysis")
- 
-    return update_session(session_id, updates)
+
+    return update_session(session_id, updates, org_id=org_id)
  
  
 # ── TEST ──────────────────────────────────────────────────────

@@ -39,21 +39,22 @@ client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
  
  
 # ── Main Functions ─────────────────────────────────────────────
-def run_analysis(session_id):
+def run_analysis(session_id, org_id=None):
     """
     Stage 3 main function.
     Runs system + stakeholder + process analysis in one call.
     Returns the full analysis dict.
     """
-    session = load_session(session_id)
+    session = load_session(session_id, org_id=org_id)
     problem = session.get("problem_refined") or session.get("problem_raw")
- 
+
     print(f"\n🔍 Searching knowledge base for analysis context...")
     results = get_relevant_context(
         question=problem,
         top_k=5,
         system_name=session.get("system_filter"),
-        source_type=session.get("source_filter")
+        source_type=session.get("source_filter"),
+        org_id=org_id,
     )
  
     context = "No relevant documents found in the knowledge base."
@@ -116,7 +117,7 @@ def run_analysis(session_id):
         "analysis_tokens_in":      input_tokens,
         "analysis_tokens_out":     output_tokens,
         "analysis_cost_usd":       call_cost,
-    })
+    }, org_id=org_id)
  
     print(f"✅ Analysis complete:")
     print(f"   Systems identified      : {len(analysis.get('impacted_systems', []))}")
@@ -126,12 +127,12 @@ def run_analysis(session_id):
     return analysis
  
  
-def generate_system_graph(session_id):
+def generate_system_graph(session_id, org_id=None):
     """
     Generate a Mermaid.js diagram from the analysed systems.
     Returns the Mermaid diagram string.
     """
-    session = load_session(session_id)
+    session = load_session(session_id, org_id=org_id)
     systems = session.get("impacted_systems", [])
     process = session.get("existing_process", [])
  
@@ -206,17 +207,17 @@ def generate_system_graph(session_id):
         "graph_tokens_in":      input_tokens,
         "graph_tokens_out":     output_tokens,
         "graph_cost_usd":       call_cost,
-    })
- 
+    }, org_id=org_id)
+
     print(f"✅ System graph generated ({len(graph)} chars)")
     return graph
- 
- 
-def approve_analysis(session_id):
+
+
+def approve_analysis(session_id, org_id=None):
     """
     BA approves the analysis and advances to Stage 4 (Gap Filling).
     """
-    update_session(session_id, {"stage": STAGE_GAP_FILLING})
+    update_session(session_id, {"stage": STAGE_GAP_FILLING}, org_id=org_id)
     print(f"✅ Analysis approved — advancing to Stage 4: Gap Filling")
  
  

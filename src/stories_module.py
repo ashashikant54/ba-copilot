@@ -35,12 +35,12 @@ client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
  
  
 # ── Functions ──────────────────────────────────────────────────
-def generate_user_stories(session_id):
+def generate_user_stories(session_id, org_id=None):
     """
     Stage 7a: Generate ADO-ready user stories from the approved BRD.
     Returns list of user story objects.
     """
-    session = load_session(session_id)
+    session = load_session(session_id, org_id=org_id)
     brd     = session.get("brd_final") or session.get("brd_draft")
  
     if not brd:
@@ -116,7 +116,7 @@ def generate_user_stories(session_id):
         "stories_tokens_in":      input_tokens,
         "stories_tokens_out":     output_tokens,
         "stories_cost_usd":       call_cost,
-    })
+    }, org_id=org_id)
  
     print(f"✅ Generated {len(stories)} user stories")
  
@@ -134,9 +134,9 @@ def generate_user_stories(session_id):
     return stories
  
  
-def get_stories_summary(session_id):
+def get_stories_summary(session_id, org_id=None):
     """Return a summary of generated user stories."""
-    session = load_session(session_id)
+    session = load_session(session_id, org_id=org_id)
     stories = session.get("user_stories", [])
  
     if not stories:
@@ -165,12 +165,12 @@ def get_stories_summary(session_id):
     }
  
  
-def export_stories_as_csv(session_id):
+def export_stories_as_csv(session_id, org_id=None):
     """
     Export user stories as CSV string.
     Can be imported directly into Azure DevOps.
     """
-    session = load_session(session_id)
+    session = load_session(session_id, org_id=org_id)
     stories = session.get("user_stories", [])
  
     if not stories:
@@ -206,9 +206,9 @@ def export_stories_as_csv(session_id):
     return "\n".join(lines)
  
  
-def mark_complete(session_id):
+def mark_complete(session_id, org_id=None):
     """Mark the session as fully complete."""
-    update_session(session_id, {"stage": STAGE_COMPLETE})
+    update_session(session_id, {"stage": STAGE_COMPLETE}, org_id=org_id)
     print(f"✅ Session complete — all 8 stages done!")
  
  
