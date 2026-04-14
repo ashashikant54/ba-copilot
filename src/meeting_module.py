@@ -1,5 +1,6 @@
 # meeting_module.py
 # Feature #4 — Meeting Recording Processor
+# Phase 2 Sprint 2 (A8 step 3) — org_id tenancy for meetings.
 #
 # WHAT IT DOES:
 #   1. Accepts .txt, .vtt, .docx (transcript) OR .mp4 (audio/video)
@@ -12,14 +13,16 @@
 #   4. Saves meeting record to Azure Blob Storage (meetings container)
 #   5. On human approval → indexes into KB via load_and_index_document
 #
-# STORAGE PATTERN:
-#   Same as session_manager.py — Azure Blob Storage
+# STORAGE PATTERN (Sprint 2):
 #   Container: "meetings"
-#   Blob name: "{meeting_id}.json"
+#   Blob name: "{org_id}/{meeting_id}.json"
+#   Legacy Phase 1 blobs live at root ("{meeting_id}.json") and are still
+#   readable via a read-through fallback in load_meeting / list_meetings.
 #
 # AZURE BLOB CONTAINERS:
-#   sessions  → analysis sessions (existing)
-#   meetings  → meeting records   (NEW)
+#   sessions  → analysis sessions (Sprint 1 org-prefixed)
+#   meetings  → meeting records   (Sprint 2 org-prefixed, this file)
+#   documents → document registry (Sprint 2 per-org file, see document_registry.py)
  
 import os
 import sys
@@ -43,11 +46,12 @@ from openai import OpenAI
 from prompt_manager import get_prompt, get_model_config, estimate_cost, get_prompt_version
  
 load_dotenv()
- 
+
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
- 
+
 from document_registry import register_document
 from retriever import load_and_index_document
+from session_manager import _resolve_org_id, DEFAULT_ORG_ID
  
 # ── Config ─────────────────────────────────────────────────────
 AZURE_CONNECTION_STRING = os.environ.get("AZURE_STORAGE_CONNECTION_STRING")
@@ -78,9 +82,11 @@ def _get_meetings_container():
  
  
 def _save_meeting(meeting: dict):
-    """Save meeting record to Azure Blob Storage."""
+    """Save meeting record to Azure Blob Storage under its org_id prefix."""
     meeting["updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    blob_name = f"{meeting['meeting_id']}.json"
+    org_id           = _resolve_org_id(meeting.get("org_id"))
+    meeting["org_id"] = org_id   # normalise in case it was missing (legacy load)
+    blob_name = f"{org_id}/{meeting['meeting_id']}.json"
     data      = json.dumps(meeting, indent=2)
     container = _get_meetings_container()
     container.upload_blob(
@@ -89,47 +95,91 @@ def _save_meeting(meeting: dict):
         overwrite=True,
         encoding="utf-8"
     )
- 
- 
-def load_meeting(meeting_id: str) -> dict:
-    """Load a meeting record from Azure Blob Storage."""
+
+
+def load_meeting(meeting_id: str, org_id: str = None) -> dict:
+    """Load a meeting record from Azure Blob Storage.
+
+    Primary path:  meetings/{org_id}/{meeting_id}.json
+    LEGACY FALLBACK: meetings/{meeting_id}.json  (Phase 1 root-path blobs)
+
+    Remove the fallback block in a future sprint once all Phase 1 meeting
+    blobs are confirmed migrated (a save on a legacy-loaded meeting rewrites
+    it under the org prefix automatically).
+    """
+    org_id    = _resolve_org_id(org_id)
+    container = _get_meetings_container()
+
     try:
-        container = _get_meetings_container()
-        blob      = container.get_blob_client(f"{meeting_id}.json")
-        data      = blob.download_blob().readall()
+        blob = container.get_blob_client(f"{org_id}/{meeting_id}.json")
+        data = blob.download_blob().readall()
         return json.loads(data.decode("utf-8"))
     except ResourceNotFoundError:
-        raise FileNotFoundError(f"Meeting '{meeting_id}' not found in Azure Blob Storage")
- 
- 
-def list_meetings() -> list:
-    """Return all meeting records, newest first."""
+        pass   # fall through to legacy
+
+    # ── LEGACY FALLBACK (remove once all Phase 1 meeting blobs migrated) ──
+    try:
+        blob = container.get_blob_client(f"{meeting_id}.json")
+        data = blob.download_blob().readall()
+        meeting = json.loads(data.decode("utf-8"))
+        meeting.setdefault("org_id", DEFAULT_ORG_ID)
+        return meeting
+    except ResourceNotFoundError:
+        raise FileNotFoundError(
+            f"Meeting '{meeting_id}' not found in Azure Blob Storage "
+            f"(checked {org_id}/{meeting_id}.json and legacy {meeting_id}.json)"
+        )
+
+
+def list_meetings(org_id: str = None) -> list:
+    """Return meeting records for an org, newest first.
+
+    Scoping via list_blobs(name_starts_with=...) so cross-org blobs are
+    never downloaded. The default org also sweeps Phase 1 root-path blobs
+    via LEGACY FALLBACK, deduped by meeting_id.
+    """
+    org_id    = _resolve_org_id(org_id)
     container = _get_meetings_container()
     meetings  = []
-    for blob_item in container.list_blobs():
+    seen_ids  = set()
+
+    def _accumulate(blob_name):
+        try:
+            blob = container.get_blob_client(blob_name)
+            data = blob.download_blob().readall()
+            m    = json.loads(data.decode("utf-8"))
+            if m["meeting_id"] in seen_ids:
+                return   # org-prefixed copy already captured
+            seen_ids.add(m["meeting_id"])
+            meetings.append({
+                "meeting_id":   m["meeting_id"],
+                "title":        m["title"],
+                "system_name":  m.get("system_name", ""),
+                "file_type":    m.get("file_type", ""),
+                "file_size_kb": m.get("file_size_kb", 0),
+                "kb_stored":    m.get("kb_stored", False),
+                "created_at":   m["created_at"],
+                "updated_at":   m["updated_at"],
+                "summary_preview": (
+                    m.get("summary", "")[:120] + "..."
+                    if len(m.get("summary", "")) > 120
+                    else m.get("summary", "")
+                )
+            })
+        except Exception:
+            pass
+
+    # Primary scope — meetings/{org_id}/*.json
+    for blob_item in container.list_blobs(name_starts_with=f"{org_id}/"):
         if blob_item.name.endswith(".json"):
-            try:
-                blob = container.get_blob_client(blob_item.name)
-                data = blob.download_blob().readall()
-                m    = json.loads(data.decode("utf-8"))
-                meetings.append({
-                    "meeting_id":   m["meeting_id"],
-                    "title":        m["title"],
-                    "system_name":  m.get("system_name", ""),
-                    "file_type":    m.get("file_type", ""),
-                    "file_size_kb": m.get("file_size_kb", 0),
-                    "kb_stored":    m.get("kb_stored", False),
-                    "created_at":   m["created_at"],
-                    "updated_at":   m["updated_at"],
-                    # One-liner preview of summary
-                    "summary_preview": (
-                        m.get("summary", "")[:120] + "..."
-                        if len(m.get("summary", "")) > 120
-                        else m.get("summary", "")
-                    )
-                })
-            except Exception:
-                pass
+            _accumulate(blob_item.name)
+
+    # ── LEGACY FALLBACK (default org only — Phase 1 root-path blobs) ──
+    if org_id == DEFAULT_ORG_ID:
+        for blob_item in container.list_blobs():
+            if blob_item.name.endswith(".json") and "/" not in blob_item.name:
+                _accumulate(blob_item.name)
+
     meetings.sort(key=lambda x: x["updated_at"], reverse=True)
     return meetings
  
@@ -443,17 +493,22 @@ def process_meeting(
     system_name:  str,
     file_path:    str,
     filename:     str,
-    file_size_kb: float
+    file_size_kb: float,
+    org_id:       str = None
 ) -> dict:
     """
     Full pipeline:
       1. Extract text from file (txt/vtt/docx/mp4)
       2. AI analysis via GPT-4o-mini
-      3. Save meeting record to Azure Blob Storage
+      3. Save meeting record to Azure Blob Storage under its org_id prefix
       4. Return meeting record
- 
+
+    org_id defaults to 'default' via _resolve_org_id. Phase 1 callers that
+    don't pass org_id continue to work; Sprint 3 auth will populate it.
+
     Does NOT store to KB — that's a separate human-approval step.
     """
+    org_id     = _resolve_org_id(org_id)
     meeting_id = str(uuid.uuid4())[:8]
     ext        = os.path.splitext(filename)[1].lower()
  
@@ -533,6 +588,7 @@ def process_meeting(
     # ── Step 3: Save meeting record ───────────────────────────
     meeting = {
         "meeting_id":    meeting_id,
+        "org_id":        org_id,
         "title":         title,
         "system_name":   system_name or "",
         "filename":      filename,
@@ -574,22 +630,28 @@ def process_meeting(
 def store_meeting_to_kb(
     meeting_id:  str,
     system_name: str,
-    source_type: str
+    source_type: str,
+    org_id:      str = None
 ) -> dict:
     """
     Human-approved step: Index meeting transcript into the Knowledge Base.
- 
+
     What it does:
-      1. Loads meeting record from Azure Blob
+      1. Loads meeting record from Azure Blob (within org scope)
       2. Writes transcript + summary to a temp .txt file
-      3. Calls load_and_index_document (same as KB upload)
-      4. Calls register_document (same as KB upload)
+      3. Calls load_and_index_document under the meeting's org_id
+      4. Registers the document in the org's registry file
       5. Updates meeting record with kb_stored=True
- 
-    This means the meeting transcript becomes searchable in RAG queries —
-    future analysis sessions can pull context from past meeting discussions.
+
+    A meeting created under org X is stored in org X's Search index and
+    registry — no cross-org leakage. If org_id is omitted here but the
+    meeting dict carries one, we use the meeting's stamped org_id.
     """
-    meeting = load_meeting(meeting_id)
+    org_id  = _resolve_org_id(org_id)
+    meeting = load_meeting(meeting_id, org_id=org_id)
+    # Prefer the org_id already stamped on the meeting — guards against a
+    # caller who looked up the meeting under the default fallback path.
+    org_id  = _resolve_org_id(meeting.get("org_id") or org_id)
  
     if meeting.get("kb_stored"):
         raise ValueError(
@@ -644,19 +706,21 @@ FULL TRANSCRIPT
         chunks = load_and_index_document(
             file_path=tmp.name,
             system_name=system_name,
-            source_type=source_type
+            source_type=source_type,
+            org_id=org_id
         )
- 
-        # Register in document registry (same function as regular KB upload)
+
+        # Register in the org's document registry
         kb_filename = f"meeting_{meeting_id}_{meeting['title'][:40].replace(' ', '_')}.txt"
         kb_filename = re.sub(r"[^\w\-_.]", "", kb_filename)  # sanitize
- 
+
         record = register_document(
             document_name=kb_filename,
             system_name=system_name,
             source_type=source_type,
             chunks=chunks,
-            file_size_kb=round(len(kb_content.encode("utf-8")) / 1024, 1)
+            file_size_kb=round(len(kb_content.encode("utf-8")) / 1024, 1),
+            org_id=org_id
         )
  
         print(f"   ✅ Indexed {chunks} chunks into '{system_name} → {source_type}'")
@@ -716,3 +780,60 @@ def _format_questions_for_kb(questions: list) -> str:
             f"   Directed to: {q.get('directed_to', 'TBC')} | Impact: {q.get('impact', '')}"
         )
     return "\n".join(lines)
+
+
+# ── Smoke test (storage layer only — no GPT / STT calls) ──────
+if __name__ == "__main__":
+    print("=" * 55)
+    print("TEST: Meeting Module storage layer (org_id round-trip)")
+    print("=" * 55)
+
+    test_org = "default"
+    fake_id  = uuid.uuid4().hex[:8]
+
+    fake_meeting = {
+        "meeting_id":   fake_id,
+        "org_id":       test_org,
+        "title":        "Smoketest Meeting — Sprint 2 A8.3",
+        "system_name":  "HR System",
+        "filename":     "smoketest.txt",
+        "file_type":    ".txt",
+        "file_size_kb": 1.2,
+        "created_at":   datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "updated_at":   datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "transcript":   "Speaker 1: Hello. Speaker 2: Hi back.",
+        "summary":      "Two speakers exchanged greetings.",
+        "key_topics":   ["greetings"],
+        "decisions":    [],
+        "action_items": [],
+        "open_questions": [],
+        "participants": ["Speaker 1", "Speaker 2"],
+        "ba_insights":  "N/A — smoke test fixture.",
+        "kb_stored":    False,
+        "kb_system_name": None,
+        "kb_source_type": None,
+        "kb_document_id": None,
+    }
+
+    print(f"\n── Saving meeting '{fake_id}' under org '{test_org}'")
+    _save_meeting(fake_meeting)
+
+    print("── Loading back via load_meeting (should hit org-prefixed path)")
+    loaded = load_meeting(fake_id, org_id=test_org)
+    assert loaded["meeting_id"] == fake_id
+    assert loaded["org_id"]     == test_org
+    print(f"   OK — loaded '{loaded['title']}'  org_id={loaded['org_id']}")
+
+    print("── list_meetings scoped to 'default' (must include new meeting)")
+    listed = list_meetings(org_id=test_org)
+    assert any(m["meeting_id"] == fake_id for m in listed)
+    print(f"   OK — {len(listed)} meetings total in org (org-prefixed + legacy)")
+
+    print("── Cleaning up smoke test blob")
+    try:
+        _get_meetings_container().delete_blob(f"{test_org}/{fake_id}.json")
+        print("   OK — test blob deleted")
+    except Exception as e:
+        print(f"   cleanup failed (non-fatal): {e}")
+
+    print("\nMeeting module storage layer smoke test complete.")
