@@ -15,12 +15,14 @@
 import os
 import sys
 import tempfile
-from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Body
+import bcrypt
+import jwt
+from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Body, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, Response
 from pydantic import BaseModel
 from typing import Optional
- 
+
 from dotenv import load_dotenv
 load_dotenv()
  
@@ -73,7 +75,16 @@ from document_registry import (
     get_all_documents, delete_document
 )
 from retriever import load_and_index_document
- 
+
+# ── Phase 2 Sprint 4: auth middleware + user model ───────────
+from auth_middleware import (
+    AuthMiddleware, create_token, decode_token, DEV_MODE_USER,
+)
+from user_manager import (
+    create_user, get_user, get_user_by_email, update_user, list_users,
+    ROLE_ANALYST, ROLE_SUBSCRIBER, VALID_ROLES,
+)
+
 # ── Lifespan: initialise OTel on startup ─────────────────────
 # LangGraph added a context variable warning about asyncio — using
 # lifespan to ensure OTel is set up before first request.
@@ -93,8 +104,13 @@ async def lifespan(app):
     yield
     # Shutdown (nothing needed for OTel — BatchSpanProcessor flushes on exit)
  
-app = FastAPI(title="CoAnalytica — Phase 1", lifespan=lifespan)
- 
+app = FastAPI(title="CoAnalytica — Phase 2", lifespan=lifespan)
+
+# Phase 2 Sprint 4 (A8.7) — install AuthMiddleware BEFORE mounting static
+# files so OTel's FastAPIInstrumentor (applied in lifespan) traces the auth
+# path too. In DEV_MODE the middleware injects dev-user synthetically.
+app.add_middleware(AuthMiddleware)
+
 app.mount("/static", StaticFiles(directory="static"), name="static")
  
  
@@ -137,8 +153,139 @@ class SourceRequest(BaseModel):
 @app.get("/")
 def serve_home():
     return FileResponse("static/index.html")
- 
- 
+
+
+# ══════════════════════════════════════════════════════════════
+# AUTH — Phase 2 Sprint 4 (A8.7)
+# ══════════════════════════════════════════════════════════════
+# /auth/login and /auth/register are in AUTH_EXCLUDED_PATHS so they work
+# without a token. /auth/whoami is gated — its 401 tells the frontend to
+# show the login modal, and its 200 hydrates localStorage on page load.
+#
+# First-user-in-org promotion: per Sprint 4 Q2 decision, if the target org
+# has zero users at registration time, the new user is promoted to
+# ROLE_SUBSCRIBER regardless of what the caller requested. All subsequent
+# signups default to ROLE_ANALYST. Role promotion to admin/super_admin
+# happens through a future admin UI (not in this sprint's scope).
+
+MIN_PASSWORD_LENGTH = 8
+
+
+class RegisterRequest(BaseModel):
+    email:    str
+    password: str
+    org_id:   Optional[str] = None   # defaults to "default" for pilot
+
+
+class LoginRequest(BaseModel):
+    email:    str
+    password: str
+    org_id:   Optional[str] = None
+
+
+def _hash_password(plain: str) -> str:
+    return bcrypt.hashpw(plain.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+
+
+def _verify_password(plain: str, hashed: str) -> bool:
+    try:
+        return bcrypt.checkpw(plain.encode("utf-8"), hashed.encode("utf-8"))
+    except Exception:
+        return False
+
+
+def _user_public_view(user: dict) -> dict:
+    """Shape returned to the frontend — never includes password_hash."""
+    return {
+        "user_id":           user["user_id"],
+        "org_id":            user["org_id"],
+        "email":             user["email"],
+        "role":              user["role"],
+        "accessible_kb_ids": user.get("accessible_kb_ids", []),
+    }
+
+
+@app.post("/auth/register")
+def api_auth_register(req: RegisterRequest):
+    """Public signup. First user in an org is promoted to subscriber."""
+    email = (req.email or "").strip()
+    if "@" not in email:
+        raise HTTPException(400, "email must be a valid address")
+    if len(req.password or "") < MIN_PASSWORD_LENGTH:
+        raise HTTPException(400, f"password must be at least {MIN_PASSWORD_LENGTH} characters")
+
+    org_id = (req.org_id or "default").strip() or "default"
+
+    # First-user-in-org promotion. list_users returns [] for a brand-new org.
+    is_first = len(list_users(org_id)) == 0
+    role = ROLE_SUBSCRIBER if is_first else ROLE_ANALYST
+
+    try:
+        user_id = create_user(org_id=org_id, email=email, role=role)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+    update_user(org_id, user_id, {"password_hash": _hash_password(req.password)})
+    user  = get_user(org_id, user_id)
+    token = create_token(user_id=user_id, org_id=org_id, role=role)
+    return {"token": token, "user": _user_public_view(user)}
+
+
+@app.post("/auth/login")
+def api_auth_login(req: LoginRequest):
+    """Issue a JWT for a registered (email, password) pair. Generic 401 on miss."""
+    org_id = (req.org_id or "default").strip() or "default"
+    user   = get_user_by_email(org_id, (req.email or "").strip())
+    if user is None:
+        raise HTTPException(401, "invalid credentials")
+    if not user.get("password_hash"):
+        # Pre-Sprint-4 user with no password set yet, or mid-signup failure.
+        raise HTTPException(401, "invalid credentials")
+    if not _verify_password(req.password or "", user["password_hash"]):
+        raise HTTPException(401, "invalid credentials")
+
+    token = create_token(
+        user_id=user["user_id"], org_id=user["org_id"], role=user["role"],
+    )
+    return {"token": token, "user": _user_public_view(user)}
+
+
+@app.get("/auth/whoami")
+def api_auth_whoami(request: Request):
+    """Return the authenticated user's claims (or DEV_MODE_USER).
+
+    In DEV_MODE the middleware injected the synthetic super_admin — we
+    still return a real-looking payload so the frontend can hydrate its
+    localStorage the same way as a logged-in production user.
+    """
+    # Middleware guarantees these are present on any non-excluded path.
+    user_id = getattr(request.state, "user_id", None)
+    if not user_id:
+        # Defense-in-depth — should never fire because this path isn't excluded.
+        raise HTTPException(401, "unauthenticated")
+
+    # DEV_MODE path — return a synthetic view without hitting blob storage.
+    if user_id == DEV_MODE_USER["user_id"]:
+        return {
+            "user": {
+                "user_id":           DEV_MODE_USER["user_id"],
+                "org_id":            DEV_MODE_USER["org_id"],
+                "email":             "dev@localhost",
+                "role":              DEV_MODE_USER["role"],
+                "accessible_kb_ids": [],
+            },
+            "dev_mode": True,
+        }
+
+    # Real user — lookup preserves public-view shape and never leaks password_hash.
+    try:
+        user = get_user(request.state.org_id, user_id)
+    except FileNotFoundError:
+        # Valid token but the user blob is gone — force re-login.
+        raise HTTPException(401, "user record not found")
+    return {"user": _user_public_view(user), "dev_mode": False}
+
+
 # ══════════════════════════════════════════════════════════════
 # SESSION MANAGEMENT
 # ══════════════════════════════════════════════════════════════

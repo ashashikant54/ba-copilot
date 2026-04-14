@@ -299,25 +299,74 @@ label{display:block;font-size:11.5px;color:var(--ink3);font-weight:600;margin-bo
 .admin-refresh-bar{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;}
 .admin-refresh-bar h2{font-size:18px;font-weight:700;color:var(--ink1);letter-spacing:-.3px;}
 .admin-refresh-bar small{font-size:11.5px;color:var(--ink5);}
+
+/* ── Auth modal (Phase 2 Sprint 4) ── */
+#auth-overlay{position:fixed;inset:0;background:rgba(15,23,42,.78);z-index:10000;display:none;align-items:center;justify-content:center;padding:20px;}
+#auth-overlay.visible{display:flex;}
+#auth-card{background:var(--white);border-radius:14px;padding:28px;max-width:380px;width:100%;box-shadow:0 18px 48px rgba(0,0,0,.35);}
+#auth-card h2{font-size:20px;font-weight:700;letter-spacing:-.3px;margin-bottom:6px;color:var(--ink1);}
+#auth-card .sub{font-size:12.5px;color:var(--ink4);margin-bottom:18px;}
+#auth-card label{display:block;font-size:11.5px;font-weight:600;color:var(--ink3);margin-bottom:4px;text-transform:uppercase;letter-spacing:.4px;}
+#auth-card input{width:100%;padding:10px 12px;border:1px solid var(--border2);border-radius:8px;font-size:13px;margin-bottom:12px;font-family:inherit;}
+#auth-card input:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px var(--blue-lt);}
+#auth-card button.primary{width:100%;padding:11px;background:var(--blue);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;margin-top:4px;}
+#auth-card button.primary:hover{background:var(--blue-dk);}
+#auth-card .switch-mode{font-size:12px;color:var(--ink4);text-align:center;margin-top:14px;}
+#auth-card .switch-mode a{color:var(--blue);text-decoration:none;cursor:pointer;font-weight:600;}
+#auth-error{background:var(--red-lt);border:1px solid var(--red-mid);color:var(--red);padding:9px 12px;border-radius:7px;font-size:12px;margin-bottom:12px;display:none;}
+#auth-error.visible{display:block;}
+
+/* ── Role-gated elements (Phase 2 Sprint 4) ──
+   Any element with data-roles="a,b,c" is shown only if the current user's
+   role is in the list. applyRoleVisibility() in JS clears inline display
+   for allowed elements or sets display:none for disallowed ones.
+   The whole app is hidden via #app-shell during the initial auth check
+   to avoid a flash of all tabs before the role filter runs. */
+#app-shell{visibility:hidden;}
+#app-shell.auth-ready{visibility:visible;}
 </style>
 </head>
 <body>
+<!-- Auth overlay (Phase 2 Sprint 4) — hidden when already authenticated. -->
+<div id="auth-overlay" role="dialog" aria-modal="true" aria-labelledby="auth-title">
+  <div id="auth-card">
+    <h2 id="auth-title">Sign in to CoAnalytica</h2>
+    <div class="sub" id="auth-sub">Enter your email and password to continue.</div>
+    <div id="auth-error"></div>
+    <form id="auth-form" onsubmit="return submitAuth(event)">
+      <label for="auth-email">Email</label>
+      <input id="auth-email" type="email" autocomplete="email" required />
+      <label for="auth-password">Password</label>
+      <input id="auth-password" type="password" autocomplete="current-password" required minlength="8" />
+      <input id="auth-org" type="hidden" value="default" />
+      <button class="primary" type="submit" id="auth-submit-btn">Sign in</button>
+    </form>
+    <div class="switch-mode">
+      <span id="auth-switch-text">No account yet?</span>
+      <a id="auth-switch-link" onclick="toggleAuthMode()">Register →</a>
+    </div>
+  </div>
+</div>
+
+<div id="app-shell">
+
 <header>
   <div class="logo-icon">C</div>
   <div>
     <div class="logo-text">CoAnalytica</div>
     <div class="logo-sub">Enterprise AI Platform</div>
   </div>
-  <span class="badge">Phase 1</span>
+  <span class="badge">Phase 2</span>
 </header>
- 
+
 <div class="tabs">
-  <div class="tab active" onclick="showTab('analyse',this)">⚡ Analyse</div>
-  <div class="tab" onclick="showTab('kb',this)">🗂 Knowledge Base</div>
-  <div class="tab" onclick="showTab('sessions',this)">📋 Sessions</div>
-  <div class="tab" onclick="showTab('meetings',this)">🎥 Meetings</div>
-  <div class="tab" onclick="showTab('admin',this)">🔧 Admin</div>
-  <div class="tab" onclick="showTab('eval',this)">🧪 Eval</div>
+  <div class="tab active" data-roles="super_admin,admin,analyst" onclick="showTab('analyse',this)">⚡ Analyse</div>
+  <div class="tab" data-roles="super_admin,admin,analyst" onclick="showTab('kb',this)">🗂 Knowledge Base</div>
+  <div class="tab" data-roles="super_admin,admin,analyst" onclick="showTab('sessions',this)">📋 Sessions</div>
+  <div class="tab" data-roles="super_admin,admin,analyst" onclick="showTab('meetings',this)">🎥 Meetings</div>
+  <div class="tab" data-roles="super_admin,admin" onclick="showTab('admin',this)">🔧 Admin</div>
+  <div class="tab" data-roles="super_admin,admin" onclick="showTab('eval',this)">🧪 Eval</div>
+  <!-- Sprint 5+: App Support "Platform" tab goes here, data-roles="app_support" -->
 </div>
  
 <!-- ═══════════════════════════════════════════════
@@ -971,7 +1020,133 @@ label{display:block;font-size:11.5px;color:var(--ink3);font-weight:600;margin-bo
  
 <script>
 mermaid.initialize({ startOnLoad: false, theme: 'default', securityLevel: 'loose' });
- 
+
+// ══════════════════════════════════════════════════════════════
+// AUTH — Phase 2 Sprint 4 (A8.7)
+// ══════════════════════════════════════════════════════════════
+// Every existing fetch() in this file has been retrofitted to apiFetch()
+// so the Bearer token is attached automatically. The three /auth/* calls
+// below (whoami, login, register) use raw fetch intentionally — they
+// either don't need a token (login/register) or are the ones that CHECK
+// whether a token works (whoami).
+//
+// A 401 from any non-auth endpoint clears localStorage and reloads the
+// page — on the next load, whoami will 401 and the login modal will show.
+const TOKEN_KEY = 'coanalytica_token';
+const USER_KEY  = 'coanalytica_user';
+let currentUser = null;   // hydrated by bootstrapAuth() before any API call
+
+async function apiFetch(url, opts = {}) {
+  const token = localStorage.getItem(TOKEN_KEY);
+  const headers = Object.assign({}, opts.headers || {});
+  if (token) headers['Authorization'] = 'Bearer ' + token;
+  const res = await fetch(url, Object.assign({}, opts, { headers }));
+  if (res.status === 401 && !url.startsWith('/auth/')) {
+    localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(USER_KEY);
+    location.reload();
+    throw new Error('Session expired');
+  }
+  return res;
+}
+
+function applyRoleVisibility(role) {
+  document.querySelectorAll('[data-roles]').forEach(el => {
+    const allowed = el.dataset.roles.split(',').map(s => s.trim());
+    el.style.display = allowed.includes(role) ? '' : 'none';
+  });
+}
+
+function showAuthError(msg) {
+  const el = document.getElementById('auth-error');
+  el.textContent = msg;
+  el.classList.add('visible');
+}
+function clearAuthError() {
+  const el = document.getElementById('auth-error');
+  el.textContent = '';
+  el.classList.remove('visible');
+}
+
+let authMode = 'login';   // 'login' | 'register'
+function toggleAuthMode() {
+  authMode = (authMode === 'login') ? 'register' : 'login';
+  document.getElementById('auth-title').textContent =
+    authMode === 'login' ? 'Sign in to CoAnalytica' : 'Create your account';
+  document.getElementById('auth-sub').textContent =
+    authMode === 'login'
+      ? 'Enter your email and password to continue.'
+      : 'The first user in a new org becomes the Subscriber.';
+  document.getElementById('auth-submit-btn').textContent =
+    authMode === 'login' ? 'Sign in' : 'Create account';
+  document.getElementById('auth-switch-text').textContent =
+    authMode === 'login' ? 'No account yet?' : 'Already have an account?';
+  document.getElementById('auth-switch-link').textContent =
+    authMode === 'login' ? 'Register →' : '← Sign in';
+  clearAuthError();
+}
+
+async function submitAuth(ev) {
+  ev.preventDefault();
+  clearAuthError();
+  const email    = document.getElementById('auth-email').value.trim();
+  const password = document.getElementById('auth-password').value;
+  const org_id   = document.getElementById('auth-org').value.trim() || 'default';
+  const url      = authMode === 'login' ? '/auth/login' : '/auth/register';
+  try {
+    const res = await fetch(url, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ email, password, org_id }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: 'request failed' }));
+      showAuthError(err.detail || 'request failed');
+      return false;
+    }
+    const data = await res.json();
+    localStorage.setItem(TOKEN_KEY, data.token);
+    localStorage.setItem(USER_KEY, JSON.stringify(data.user));
+    currentUser = data.user;
+    document.getElementById('auth-overlay').classList.remove('visible');
+    applyRoleVisibility(currentUser.role);
+    document.getElementById('app-shell').classList.add('auth-ready');
+    // Now that we're authenticated, run the original window.onload work.
+    await refreshSystems();
+    await loadDocTree();
+  } catch (e) {
+    showAuthError(e.message || 'network error');
+  }
+  return false;
+}
+
+async function bootstrapAuth() {
+  // Try /auth/whoami with whatever token is currently in localStorage.
+  // 200 → hydrate + show app; 401 → show login modal.
+  const token = localStorage.getItem(TOKEN_KEY);
+  const headers = token ? { Authorization: 'Bearer ' + token } : {};
+  try {
+    const res = await fetch('/auth/whoami', { headers });
+    if (res.ok) {
+      const data = await res.json();
+      currentUser = data.user;
+      localStorage.setItem(USER_KEY, JSON.stringify(data.user));
+      // DEV_MODE: backend synthesised a super_admin — no token to store
+      // on this path, but whoami returned dev_mode:true so skip the modal.
+      applyRoleVisibility(currentUser.role);
+      document.getElementById('app-shell').classList.add('auth-ready');
+      return true;
+    }
+  } catch (e) {
+    // fall through to modal
+  }
+  // 401 or network error → show login modal, keep app shell hidden.
+  localStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem(USER_KEY);
+  document.getElementById('auth-overlay').classList.add('visible');
+  return false;
+}
+
 // ── State ────────────────────────────────────────────────────
 let currentSessionId = null;
 let currentStage     = 1;
@@ -979,9 +1154,11 @@ let systems          = {};
 let selectedFile     = null;
 let currentRequirements = [];
 let isReadOnly       = false;
- 
+
 // ── Init ─────────────────────────────────────────────────────
 window.onload = async () => {
+  const ok = await bootstrapAuth();
+  if (!ok) return;   // login modal showing — submitAuth will finish boot
   await refreshSystems();
   await loadDocTree();
 };
@@ -1024,13 +1201,13 @@ async function startAnalysis() {
   if(!problem || problem.length < 20)
     return showStatus('s1Status','err','Please describe your problem in more detail');
   showStatus('s1Status','load','<span class="spin"></span> Creating session...');
-  const res  = await fetch('/sessions/create',{method:'POST',headers:{'Content-Type':'application/json'},
+  const res  = await apiFetch('/sessions/create',{method:'POST',headers:{'Content-Type':'application/json'},
     body: JSON.stringify({problem, system_name: sys||null, source_type: src||null})});
   const data = await res.json();
   if(!res.ok) return showStatus('s1Status','err',data.detail);
   currentSessionId = data.session_id;
   showStatus('s1Status','load','<span class="spin"></span> Generating clarifying questions...');
-  const qRes  = await fetch(`/sessions/${currentSessionId}/clarify/questions`,{method:'POST'});
+  const qRes  = await apiFetch(`/sessions/${currentSessionId}/clarify/questions`,{method:'POST'});
   const qData = await qRes.json();
   if(!qRes.ok) return showStatus('s1Status','err',qData.detail);
   renderQuestions(qData.questions);
@@ -1068,9 +1245,9 @@ async function submitAnswers() {
     if(el) answers[q.id] = el.value.trim();
   });
   showStatus('s2Status','load','<span class="spin"></span> Saving answers and refining problem...');
-  await fetch(`/sessions/${currentSessionId}/clarify/answers`,{method:'POST',
+  await apiFetch(`/sessions/${currentSessionId}/clarify/answers`,{method:'POST',
     headers:{'Content-Type':'application/json'},body: JSON.stringify({answers})});
-  const res  = await fetch(`/sessions/${currentSessionId}/clarify/refine`,{method:'POST'});
+  const res  = await apiFetch(`/sessions/${currentSessionId}/clarify/refine`,{method:'POST'});
   const data = await res.json();
   if(!res.ok) return showStatus('s2Status','err',data.detail);
   document.getElementById('refinedProblemText').value = data.problem_refined;
@@ -1081,12 +1258,12 @@ async function submitAnswers() {
 async function approveProblem() {
   const editedText = document.getElementById('refinedProblemText').value.trim();
   showStatus('s2bStatus','load','<span class="spin"></span> Approving and running analysis...');
-  await fetch(`/sessions/${currentSessionId}/clarify/approve`,{method:'POST',
+  await apiFetch(`/sessions/${currentSessionId}/clarify/approve`,{method:'POST',
     headers:{'Content-Type':'application/json'},body: JSON.stringify({approved:true, manual_edit: editedText})});
-  const aRes  = await fetch(`/sessions/${currentSessionId}/analyse`,{method:'POST'});
+  const aRes  = await apiFetch(`/sessions/${currentSessionId}/analyse`,{method:'POST'});
   const aData = await aRes.json();
   if(!aRes.ok) return showStatus('s2bStatus','err',aData.detail);
-  const gRes  = await fetch(`/sessions/${currentSessionId}/analyse/graph`,{method:'POST'});
+  const gRes  = await apiFetch(`/sessions/${currentSessionId}/analyse/graph`,{method:'POST'});
   const gData = await gRes.json();
   renderAnalysis(aData, gData.graph);
   showStatus('s2bStatus','ok','✅ Analysis complete');
@@ -1155,8 +1332,8 @@ async function renderGraph(graphDef) {
  
 async function approveAnalysis() {
   showStatus('s3Status','load','<span class="spin"></span> Generating gap questions...');
-  await fetch(`/sessions/${currentSessionId}/analyse/approve`,{method:'POST'});
-  const res  = await fetch(`/sessions/${currentSessionId}/gaps/questions`,{method:'POST'});
+  await apiFetch(`/sessions/${currentSessionId}/analyse/approve`,{method:'POST'});
+  const res  = await apiFetch(`/sessions/${currentSessionId}/gaps/questions`,{method:'POST'});
   const data = await res.json();
   if(!res.ok) return showStatus('s3Status','err',data.detail);
   renderGapQuestions(data.questions);
@@ -1198,9 +1375,9 @@ async function submitGapAnswers() {
     if(el && el.value.trim()) answers[q.id] = el.value.trim();
   });
   showStatus('s4Status','load','<span class="spin"></span> Saving answers and assessing clarity...');
-  await fetch(`/sessions/${currentSessionId}/gaps/answers`,{method:'POST',
+  await apiFetch(`/sessions/${currentSessionId}/gaps/answers`,{method:'POST',
     headers:{'Content-Type':'application/json'},body: JSON.stringify({answers})});
-  const res  = await fetch(`/sessions/${currentSessionId}/gaps/assess`,{method:'POST'});
+  const res  = await apiFetch(`/sessions/${currentSessionId}/gaps/assess`,{method:'POST'});
   const data = await res.json();
   if(!res.ok) return showStatus('s4Status','err',data.detail);
   renderClarityAssessment(data);
@@ -1239,8 +1416,8 @@ function renderClarityAssessment(data) {
  
 async function confirmAndProceed() {
   showStatus('s4Status','load','<span class="spin"></span> Extracting requirements...');
-  await fetch(`/sessions/${currentSessionId}/gaps/confirm`,{method:'POST'});
-  const res=await fetch(`/sessions/${currentSessionId}/requirements/extract`,{method:'POST'});
+  await apiFetch(`/sessions/${currentSessionId}/gaps/confirm`,{method:'POST'});
+  const res=await apiFetch(`/sessions/${currentSessionId}/requirements/extract`,{method:'POST'});
   const data=await res.json();
   if(!res.ok) return showStatus('s4Status','err',data.detail);
   currentRequirements=data.requirements;
@@ -1292,7 +1469,7 @@ async function submitEdit(reqId){
 }
  
 async function updateReq(reqId,status,editedText=''){
-  await fetch(`/sessions/${currentSessionId}/requirements/update`,{method:'PUT',
+  await apiFetch(`/sessions/${currentSessionId}/requirements/update`,{method:'PUT',
     headers:{'Content-Type':'application/json'},body:JSON.stringify({req_id:reqId,status,edited_text:editedText})});
   const card=document.getElementById(`req-${reqId}`);
   card.className=`req-card ${status}`;
@@ -1323,9 +1500,9 @@ function updateReqSummary(){
  
 async function advanceToBrd(){
   showStatus('s5Status','load','<span class="spin"></span> Generating BRD preview...');
-  const advRes=await fetch(`/sessions/${currentSessionId}/requirements/advance`,{method:'POST'});
+  const advRes=await apiFetch(`/sessions/${currentSessionId}/requirements/advance`,{method:'POST'});
   if(!advRes.ok){const d=await advRes.json();return showStatus('s5Status','err',d.detail);}
-  const res=await fetch(`/sessions/${currentSessionId}/brd/generate`,{method:'POST'});
+  const res=await apiFetch(`/sessions/${currentSessionId}/brd/generate`,{method:'POST'});
   const data=await res.json();
   if(!res.ok) return showStatus('s5Status','err',data.detail);
   document.getElementById('brdOutput').textContent=data.brd;
@@ -1338,8 +1515,8 @@ async function advanceToBrd(){
 // ═══════════════════════════════════════════════════════════
 async function approveBrd(){
   showStatus('s6Status','load','<span class="spin"></span> Approving BRD and generating user stories...');
-  await fetch(`/sessions/${currentSessionId}/brd/approve`,{method:'POST'});
-  const res=await fetch(`/sessions/${currentSessionId}/stories/generate`,{method:'POST'});
+  await apiFetch(`/sessions/${currentSessionId}/brd/approve`,{method:'POST'});
+  const res=await apiFetch(`/sessions/${currentSessionId}/stories/generate`,{method:'POST'});
   const data=await res.json();
   if(!res.ok) return showStatus('s6Status','err',data.detail);
   renderStories(data.stories);
@@ -1353,7 +1530,7 @@ async function regenerateBrd(){
   const feedback=document.getElementById('brdFeedback').value.trim();
   if(!feedback) return;
   showStatus('s6Status','load','<span class="spin"></span> Regenerating BRD with your feedback...');
-  const res=await fetch(`/sessions/${currentSessionId}/brd/regenerate`,{method:'POST',
+  const res=await apiFetch(`/sessions/${currentSessionId}/brd/regenerate`,{method:'POST',
     headers:{'Content-Type':'application/json'},body:JSON.stringify({feedback})});
   const data=await res.json();
   if(!res.ok) return showStatus('s6Status','err',data.detail);
@@ -1395,7 +1572,7 @@ function renderStories(stories){
  
 async function exportCsv(){window.open(`/sessions/${currentSessionId}/stories/csv`,'_blank');}
 async function markComplete(){
-  await fetch(`/sessions/${currentSessionId}/complete`,{method:'POST'});
+  await apiFetch(`/sessions/${currentSessionId}/complete`,{method:'POST'});
   showStatus('s7Status','ok','🏁 Session marked complete! Find it in the Sessions tab.');
 }
  
@@ -1403,7 +1580,7 @@ async function markComplete(){
 // SESSIONS TAB
 // ═══════════════════════════════════════════════════════════
 async function loadSessions(){
-  const res=await fetch('/sessions');
+  const res=await apiFetch('/sessions');
   const data=await res.json();
   const el=document.getElementById('sessionsList');
   if(!data.length){el.innerHTML='<div class="empty-state">No sessions yet. Start an analysis in the Analyse tab.</div>';return;}
@@ -1431,7 +1608,7 @@ async function loadSessions(){
 async function resumeSession(sessionId){
   showTab('analyse', document.querySelector('.tab'));
   currentSessionId = sessionId;
-  const res=await fetch(`/sessions/${sessionId}`);
+  const res=await apiFetch(`/sessions/${sessionId}`);
   const data=await res.json();
   const stage=Math.min(data.stage,7);
   document.getElementById('problemInput').value=data.problem_raw||'';
@@ -1459,7 +1636,7 @@ async function resumeSession(sessionId){
 // KNOWLEDGE BASE TAB
 // ═══════════════════════════════════════════════════════════
 async function refreshSystems(){
-  const res=await fetch('/systems');
+  const res=await apiFetch('/systems');
   systems=await res.json();
   populateAllDropdowns();
   renderSystemsPills();
@@ -1505,7 +1682,7 @@ function renderSystemsPills(){
 async function addSystem(){
   const name=document.getElementById('newSystemName').value.trim();
   if(!name) return showStatus('sysStatus','err','Enter a system name');
-  const res=await fetch('/systems/add',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({system_name:name})});
+  const res=await apiFetch('/systems/add',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({system_name:name})});
   const data=await res.json();
   if(res.ok){showStatus('sysStatus','ok',data.message);document.getElementById('newSystemName').value='';await refreshSystems();}
   else showStatus('sysStatus','err',data.detail);
@@ -1516,7 +1693,7 @@ async function addSource(){
   const src=document.getElementById('newSourceName').value.trim();
   if(!sys) return showStatus('sysStatus','err','Select a system first');
   if(!src) return showStatus('sysStatus','err','Enter a source name');
-  const res=await fetch('/systems/add-source',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({system_name:sys,source_type:src})});
+  const res=await apiFetch('/systems/add-source',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({system_name:sys,source_type:src})});
   const data=await res.json();
   if(res.ok){showStatus('sysStatus','ok',data.message);document.getElementById('newSourceName').value='';await refreshSystems();}
   else showStatus('sysStatus','err',data.detail);
@@ -1538,7 +1715,7 @@ async function uploadDocument(){
   const form=new FormData();
   form.append('file',selectedFile);form.append('system_name',sys);form.append('source_type',src);
   try{
-    const res=await fetch('/upload',{method:'POST',body:form});
+    const res=await apiFetch('/upload',{method:'POST',body:form});
     const data=await res.json();
     if(res.ok){showStatus('uploadStatus','ok',data.message);selectedFile=null;document.getElementById('fileName').textContent='Drag & drop or click to browse';document.getElementById('uploadZone').style.borderColor='var(--border)';document.getElementById('fileInput').value='';await loadDocTree();}
     else showStatus('uploadStatus','err',data.detail);
@@ -1549,7 +1726,7 @@ async function uploadDocument(){
 async function loadDocTree(){
   const el=document.getElementById('docTree');
   if(!el) return;
-  const res=await fetch('/documents');
+  const res=await apiFetch('/documents');
   const data=await res.json();
   if(!Object.keys(data).length){el.innerHTML='<div class="empty-state">📭 No documents indexed yet.<br>Upload documents above.</div>';return;}
   let html='';
@@ -1571,14 +1748,14 @@ async function loadDocTree(){
  
 async function removeDoc(id,name){
   if(!confirm(`Remove "${name}" from registry?`)) return;
-  await fetch(`/documents/${id}`,{method:'DELETE'});
+  await apiFetch(`/documents/${id}`,{method:'DELETE'});
   await loadDocTree();
 }
  
 // ── Helpers ─────────────────────────────────────────────────
 async function getSession(){
   if(!currentSessionId) return null;
-  const res=await fetch(`/sessions/${currentSessionId}`);
+  const res=await apiFetch(`/sessions/${currentSessionId}`);
   return res.ok?await res.json():null;
 }
 function copyText(elId){const text=document.getElementById(elId).textContent;navigator.clipboard.writeText(text).then(()=>alert('✅ Copied!'));}
@@ -1620,7 +1797,7 @@ async function editFromStage(stageNum){
   showStatus(`s${stageNum}Status`,'load','<span class="spin"></span> Reverting session...');
   hideAllEditBars();
   try{
-    const res=await fetch(`/sessions/${currentSessionId}/revert`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({target_stage:stageNum})});
+    const res=await apiFetch(`/sessions/${currentSessionId}/revert`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({target_stage:stageNum})});
     if(!res.ok){const d=await res.json();return showStatus(`s${stageNum}Status`,'err',d.detail||'Revert failed');}
   }catch(e){return showStatus(`s${stageNum}Status`,'err','Revert failed: '+e.message);}
   currentStage=stageNum;updateStageBar(stageNum);goToStage(stageNum);
@@ -1698,7 +1875,7 @@ async function processMeeting(){
   renderMeetingPipeline(setPipelineActive(steps,aiStep-1));
   showStatus('meetingStatus','load','<span class="spin"></span> Running AI analysis...');
   try{
-    const res=await fetch('/meetings/process',{method:'POST',body:form});
+    const res=await apiFetch('/meetings/process',{method:'POST',body:form});
     const data=await res.json();
     if(!res.ok){showStatus('meetingStatus','err',`❌ ${data.detail||'Processing failed'}`);renderMeetingPipeline(setPipelineActive(steps,-1));btn.disabled=false;btn.textContent='🔍 Process Meeting';return;}
     renderMeetingPipeline(steps.map((label,i)=>({n:i+1,label,status:'done',time:'✓'})));
@@ -1737,7 +1914,7 @@ async function storeMeetingToKb(){
   if(!src) return showStatus('meetingStoreStatus','err','Select a source');
   showStatus('meetingStoreStatus','load','<span class="spin"></span> Indexing meeting transcript into Knowledge Base...');
   try{
-    const res=await fetch(`/meetings/${currentMeetingId}/store`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({system_name:sys,source_type:src})});
+    const res=await apiFetch(`/meetings/${currentMeetingId}/store`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({system_name:sys,source_type:src})});
     const data=await res.json();
     if(res.ok){showStatus('meetingStoreStatus','ok',`✅ Stored in Knowledge Base — ${sys} → ${src}`);document.querySelector('[onclick="storeMeetingToKb()"]').textContent='✅ Stored in Knowledge Base';document.querySelector('[onclick="storeMeetingToKb()"]').disabled=true;await loadMeetings();}
     else showStatus('meetingStoreStatus','err',data.detail||'Store failed');
@@ -1748,7 +1925,7 @@ async function loadMeetings(){
   const el=document.getElementById('meetingsList');
   if(!el) return;
   try{
-    const res=await fetch('/meetings');
+    const res=await apiFetch('/meetings');
     const data=await res.json();
     if(!data.length){el.innerHTML='<div class="empty-state">No meeting recordings processed yet. Upload one above.</div>';return;}
     el.innerHTML=data.map(m=>`<div class="session-card" onclick="viewMeeting('${m.meeting_id}')">
@@ -1767,7 +1944,7 @@ async function loadMeetings(){
  
 async function viewMeeting(meetingId){
   try{
-    const res=await fetch(`/meetings/${meetingId}`);
+    const res=await apiFetch(`/meetings/${meetingId}`);
     const meeting=await res.json();
     currentMeetingId=meetingId;
     renderMeetingResults(meeting);
@@ -1792,7 +1969,7 @@ async function runEval(useLlmJudge) {
  
   try {
     const url = `/eval/run?use_llm_judge=${useLlmJudge}`;
-    const res  = await fetch(url, { method: 'POST' });
+    const res  = await apiFetch(url, { method: 'POST' });
     const data = await res.json();
  
     if (!res.ok) {
@@ -1882,7 +2059,7 @@ async function runAbTest() {
   showStatus('abStatus', 'load', '<span class="spin"></span> Running A/B baseline capture...');
  
   try {
-    const res  = await fetch('/eval/ab-test', {
+    const res  = await apiFetch('/eval/ab-test', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({
@@ -1936,7 +2113,7 @@ async function checkHallucination() {
   showStatus('hallStatus', 'load', '<span class="spin"></span> Checking groundedness...');
  
   try {
-    const res  = await fetch(`/sessions/${sessionId}/eval/hallucination`);
+    const res  = await apiFetch(`/sessions/${sessionId}/eval/hallucination`);
     const data = await res.json();
  
     if(!res.ok) {
@@ -1996,7 +2173,7 @@ async function validateRequirements() {
   showStatus('s5Status','load','<span class="spin"></span> Agent running — Tool 1: KB search → Tool 2: BABOK check → Tool 3: Meeting cross-reference...');
  
   try {
-    const res  = await fetch(`/sessions/${currentSessionId}/requirements/validate`, {method:'POST'});
+    const res  = await apiFetch(`/sessions/${currentSessionId}/requirements/validate`, {method:'POST'});
     const data = await res.json();
  
     if(!res.ok) {
@@ -2212,7 +2389,7 @@ async function reviewBrd() {
     '<span class="spin"></span> Agent running — Tool 1: Traceability → Tool 2: BRD quality → Tool 3: Stakeholder alignment...');
  
   try {
-    const res  = await fetch(`/sessions/${currentSessionId}/brd/review`, {method:'POST'});
+    const res  = await apiFetch(`/sessions/${currentSessionId}/brd/review`, {method:'POST'});
     const data = await res.json();
  
     if(!res.ok) {
@@ -2456,7 +2633,7 @@ function discardBrdFixes() {
 // ═══════════════════════════════════════════════════════════
 async function loadLatestEvalResults() {
   try {
-    const res  = await fetch('/eval/results');
+    const res  = await apiFetch('/eval/results');
     const data = await res.json();
     if(data.run_id) renderEvalResults(data);
   } catch(e) {}
@@ -2469,7 +2646,7 @@ async function loadCacheStats() {
   if (!panel) return;
   panel.style.display = 'block';
   try {
-    const res  = await fetch('/cache/stats');
+    const res  = await apiFetch('/cache/stats');
     const data = await res.json();
  
     const enabled = data.enabled && data.status === 'connected';
@@ -2496,7 +2673,7 @@ async function loadCacheStats() {
  
 async function clearCacheConfirm() {
   if (!confirm('Clear all cached BABOK results? This cannot be undone.')) return;
-  const res  = await fetch('/cache', { method: 'DELETE' });
+  const res  = await apiFetch('/cache', { method: 'DELETE' });
   const data = await res.json();
   alert(data.message || 'Cache cleared');
   loadCacheStats();
@@ -2518,7 +2695,7 @@ async function loadAdminDashboard() {
  
 async function loadAdminOverview() {
   try {
-    const res  = await fetch('/admin/overview');
+    const res  = await apiFetch('/admin/overview');
     const data = await res.json();
     const cost = data.cost || {};
     const sessions = data.sessions || {};
@@ -2554,7 +2731,7 @@ async function loadAdminOverview() {
 async function loadAdminCosts() {
   const el = document.getElementById('adminCostByStage');
   try {
-    const res  = await fetch('/admin/costs/by-stage');
+    const res  = await apiFetch('/admin/costs/by-stage');
     const data = await res.json();
  
     // Find max cost for bar scaling
@@ -2589,7 +2766,7 @@ async function loadAdminCosts() {
 async function loadAdminSessionCosts() {
   const tbody = document.getElementById('adminSessionBody');
   try {
-    const res  = await fetch('/admin/costs/by-session');
+    const res  = await apiFetch('/admin/costs/by-session');
     const data = await res.json();
  
     if(!data.length) {
@@ -2623,7 +2800,7 @@ async function loadAdminSessionCosts() {
 async function loadAdminKb() {
   const el = document.getElementById('adminKbBreakdown');
   try {
-    const res  = await fetch('/admin/kb/breakdown');
+    const res  = await apiFetch('/admin/kb/breakdown');
     const data = await res.json();
  
     if(!data.length) {
@@ -2653,7 +2830,7 @@ async function loadAdminKb() {
 async function loadAdminPrompts() {
   const el = document.getElementById('adminPromptVersions');
   try {
-    const res  = await fetch('/admin/prompts/versions');
+    const res  = await apiFetch('/admin/prompts/versions');
     const data = await res.json();
  
     if(!Object.keys(data).length) {
@@ -2815,8 +2992,10 @@ async function loadAdminPrompts() {
     <div id="hallResults" style="margin-top:14px;"></div>
     <div id="hallStatus" class="status"></div>
   </div>
- 
+
 </div><!-- end tab-eval -->
- 
+
+</div><!-- end app-shell (Phase 2 Sprint 4) -->
+
 </body>
 </html>

@@ -32,7 +32,7 @@
 #   - AUTH_EXCLUDED_PATHS     — paths that bypass auth even outside DEV_MODE
 #
 # WHAT IS NOT IN SCOPE (deferred by design):
-#   - Login / signup endpoints (Sprint 4+; main.py wiring is frozen here)
+#   - Login / register endpoints and the apiFetch frontend wiring (Sprint 4)
 #   - require_role(...) role-gate dependency (Sprint 4 with tab visibility)
 #   - Password hashing / verification (future login-flow sprint)
 #   - Azure AD B2C adapter (post-pilot)
@@ -59,6 +59,10 @@ JWT_EXPIRES_HOURS = int(os.environ.get("JWT_EXPIRES_HOURS", "24"))
 
 # Paths that never require a JWT even when DEV_MODE is off. Everything else
 # (including /admin/*, /cache/*, /eval/*) MUST carry a token.
+#
+# /auth/whoami is intentionally NOT in this set — it relies on the middleware
+# to populate (or reject) request.state, so the frontend can treat a 401 from
+# whoami as "show the login modal" on page load.
 AUTH_EXCLUDED_PATHS = {
     "/",
     "/favicon.ico",
@@ -66,6 +70,8 @@ AUTH_EXCLUDED_PATHS = {
     "/docs",
     "/redoc",
     "/openapi.json",
+    "/auth/login",
+    "/auth/register",
 }
 AUTH_EXCLUDED_PREFIXES = ("/static/",)
 

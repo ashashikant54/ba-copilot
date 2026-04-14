@@ -67,9 +67,14 @@ VALID_ROLES = frozenset({
 AZURE_CONNECTION_STRING = os.environ.get("AZURE_STORAGE_CONNECTION_STRING")
 USERS_CONTAINER         = "users"
 
-# Fields blocked from direct update (use helpers or disallowed entirely).
-_UPDATE_BLOCKED_FIELDS = frozenset({
-    "user_id", "org_id", "created_at", "accessible_kb_ids",
+# update_user uses an ALLOWLIST — defense-in-depth. A future dev adding a
+# new user field (e.g. "is_locked") won't accidentally make it user-mutable
+# unless they add it here. KB grants go through assign/revoke helpers.
+# password_hash is allowed here so the /auth/register endpoint can stamp a
+# bcrypt hash via update_user; raw-dict updates from endpoints are fine
+# because the /auth/* endpoints are the only callers that ever set it.
+_UPDATE_ALLOWED_FIELDS = frozenset({
+    "email", "role", "password_hash",
 })
 
 
@@ -227,19 +232,22 @@ def list_users(org_id, role=None):
 
 
 def update_user(org_id, user_id, updates):
-    """Apply whitelisted updates (email, role) and return the updated dict.
+    """Apply allowlisted updates and return the updated dict.
 
-    Blocked: user_id, org_id, created_at, accessible_kb_ids.
+    Allowed fields: email, role, password_hash (see _UPDATE_ALLOWED_FIELDS).
+    Anything else raises ValueError — including user_id, org_id, created_at,
+    and accessible_kb_ids (grants go through assign/revoke helpers).
     Email rename — strict case-insensitive collision check within the org.
     Same email (case-insensitive) is a silent no-op. Role is validated.
     """
     org_id = _resolve_org_id(org_id)
     user   = get_user(org_id, user_id)
 
-    blocked = set(updates.keys()) & _UPDATE_BLOCKED_FIELDS
-    if blocked:
+    disallowed = set(updates.keys()) - _UPDATE_ALLOWED_FIELDS
+    if disallowed:
         raise ValueError(
-            f"Cannot update protected fields: {sorted(blocked)}. "
+            f"Cannot update fields: {sorted(disallowed)}. "
+            f"Allowed: {sorted(_UPDATE_ALLOWED_FIELDS)}. "
             f"Use assign_kb_access / revoke_kb_access for accessible_kb_ids."
         )
 
