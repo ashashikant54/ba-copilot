@@ -51,8 +51,8 @@ def _i(val):
 # PUBLIC API
 # ══════════════════════════════════════════════════════════════
  
-def get_platform_overview() -> dict:
-    sessions_list  = list_sessions()
+def get_platform_overview(org_id=None) -> dict:
+    sessions_list  = list_sessions(org_id=org_id)
     total_sessions = len(sessions_list)
     completed      = sum(1 for s in sessions_list if _i(s.get("stage")) == 8)
  
@@ -62,7 +62,7 @@ def get_platform_overview() -> dict:
  
     for s in sessions_list:
         try:
-            sess = load_session(s["session_id"])
+            sess = load_session(s["session_id"], org_id=org_id)
             for sk, _, _ in STAGES:
                 session_cost    += _f(sess.get(f"{sk}_cost_usd"))
                 session_tok_in  += _i(sess.get(f"{sk}_tokens_in"))
@@ -70,7 +70,7 @@ def get_platform_overview() -> dict:
         except Exception:
             pass
  
-    meetings_list  = list_meetings()
+    meetings_list  = list_meetings(org_id=org_id)
     total_meetings = len(meetings_list)
     kb_stored      = sum(1 for m in meetings_list if m.get("kb_stored"))
  
@@ -80,14 +80,14 @@ def get_platform_overview() -> dict:
  
     for m in meetings_list:
         try:
-            meeting = load_meeting(m["meeting_id"])
+            meeting = load_meeting(m["meeting_id"], org_id=org_id)
             meeting_cost    += _f(meeting.get("estimated_cost_usd"))
             meeting_tok_in  += _i(meeting.get("input_tokens"))
             meeting_tok_out += _i(meeting.get("output_tokens"))
         except Exception:
             pass
  
-    docs         = get_all_documents()
+    docs         = get_all_documents(org_id=org_id)
     total_docs   = len(docs)
     total_chunks = sum(_i(d.get("chunks")) for d in docs)
     total_cost   = session_cost + meeting_cost
@@ -116,16 +116,16 @@ def get_platform_overview() -> dict:
     }
  
  
-def get_cost_by_stage() -> list:
+def get_cost_by_stage(org_id=None) -> list:
     totals = {
         sk: {"label": lbl, "category": cat,
              "tokens_in": 0, "tokens_out": 0, "cost_usd": 0.0, "calls": 0}
         for sk, lbl, cat in STAGES
     }
  
-    for s in list_sessions():
+    for s in list_sessions(org_id=org_id):
         try:
-            sess = load_session(s["session_id"])
+            sess = load_session(s["session_id"], org_id=org_id)
             for sk, _, _ in STAGES:
                 tin  = _i(sess.get(f"{sk}_tokens_in"))
                 tout = _i(sess.get(f"{sk}_tokens_out"))
@@ -140,9 +140,9 @@ def get_cost_by_stage() -> list:
  
     mtg = {"label": "Meetings", "category": "meetings",
            "tokens_in": 0, "tokens_out": 0, "cost_usd": 0.0, "calls": 0}
-    for m in list_meetings():
+    for m in list_meetings(org_id=org_id):
         try:
-            meeting = load_meeting(m["meeting_id"])
+            meeting = load_meeting(m["meeting_id"], org_id=org_id)
             tin  = _i(meeting.get("input_tokens"))
             tout = _i(meeting.get("output_tokens"))
             cost = _f(meeting.get("estimated_cost_usd"))
@@ -163,11 +163,11 @@ def get_cost_by_stage() -> list:
     return result
  
  
-def get_session_cost_table() -> list:
+def get_session_cost_table(org_id=None) -> list:
     rows = []
-    for s in list_sessions():
+    for s in list_sessions(org_id=org_id):
         try:
-            sess       = load_session(s["session_id"])
+            sess       = load_session(s["session_id"], org_id=org_id)
             total_cost = sum(_f(sess.get(f"{sk}_cost_usd")) for sk, _, _ in STAGES)
             total_in   = sum(_i(sess.get(f"{sk}_tokens_in")) for sk, _, _ in STAGES)
             total_out  = sum(_i(sess.get(f"{sk}_tokens_out")) for sk, _, _ in STAGES)
@@ -194,8 +194,8 @@ def get_session_cost_table() -> list:
     return rows
  
  
-def get_kb_breakdown() -> list:
-    docs      = get_all_documents()
+def get_kb_breakdown(org_id=None) -> list:
+    docs      = get_all_documents(org_id=org_id)
     breakdown: dict = {}
  
     for doc in docs:
@@ -225,12 +225,12 @@ def get_kb_breakdown() -> list:
     return result
  
  
-def get_prompt_versions() -> dict:
+def get_prompt_versions(org_id=None) -> dict:
     versions: dict = {}
  
-    for s in list_sessions()[:50]:
+    for s in list_sessions(org_id=org_id)[:50]:
         try:
-            sess = load_session(s["session_id"])
+            sess = load_session(s["session_id"], org_id=org_id)
             for sk, lbl, _ in STAGES:
                 v = sess.get(f"{sk}_prompt_version")
                 if v:
@@ -241,9 +241,9 @@ def get_prompt_versions() -> dict:
             pass
  
     mtg_versions: dict = {}
-    for m in list_meetings()[:50]:
+    for m in list_meetings(org_id=org_id)[:50]:
         try:
-            meeting = load_meeting(m["meeting_id"])
+            meeting = load_meeting(m["meeting_id"], org_id=org_id)
             v = meeting.get("prompt_version")
             if v:
                 mtg_versions[v] = mtg_versions.get(v, 0) + 1

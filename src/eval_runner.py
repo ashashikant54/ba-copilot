@@ -120,18 +120,24 @@ def run_evaluation(
     use_llm_judge:  bool = True,
     max_cases:      Optional[int] = None,
     case_ids:       Optional[list] = None,
+    org_id:         Optional[str] = None,
 ) -> dict:
     """
     Run full evaluation against the golden requirements dataset.
- 
+
     Args:
         use_llm_judge:  If True, run LLM-as-Judge on each requirement.
                         If False, use lexical overlap only (faster, free).
         max_cases:      Limit to first N cases (useful for quick checks).
         case_ids:       Run only specific case IDs e.g. ["GR-001", "GR-005"]
- 
+        org_id:         Accepted for Phase 2 Sprint 4 endpoint-forwarding
+                        contract; currently ignored because the golden
+                        dataset is shared infrastructure (A7 notes eval is
+                        super_admin/admin-scoped, not org-scoped).
+
     Returns full eval report dict.
     """
+    _ = org_id   # reserved — see docstring
     print(f"\n{'='*60}")
     print(f"CoAnalytica Evaluation Runner")
     print(f"Mode: {'LLM-as-Judge' if use_llm_judge else 'Lexical only'}")
@@ -392,6 +398,7 @@ def run_ab_test(
     version_a:    str,
     version_b:    str,
     max_cases:    int = 8,
+    org_id:       Optional[str] = None,
 ) -> dict:
     """
     Compare two prompt versions on the golden dataset.
@@ -491,8 +498,13 @@ def run_ab_test(
     return ab_result
  
  
-def get_latest_results() -> Optional[dict]:
-    """Load the most recent eval results from disk."""
+def get_latest_results(org_id: Optional[str] = None) -> Optional[dict]:
+    """Load the most recent eval results from disk.
+
+    org_id is accepted for endpoint-forwarding contract; results file is
+    shared across orgs per A7 (eval is super_admin/admin-scoped).
+    """
+    _ = org_id   # reserved
     if not os.path.exists(RESULTS_FILE):
         return None
     with open(RESULTS_FILE) as f:
