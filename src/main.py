@@ -17,7 +17,7 @@ import sys
 import tempfile
 import bcrypt
 import jwt
-from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Body, Request
+from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Body, Request, Depends
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, Response
 from pydantic import BaseModel
@@ -78,7 +78,7 @@ from retriever import load_and_index_document
 
 # ── Phase 2 Sprint 4: auth middleware + user model ───────────
 from auth_middleware import (
-    AuthMiddleware, create_token, decode_token, DEV_MODE_USER,
+    AuthMiddleware, create_token, decode_token, DEV_MODE_USER, require_role,
 )
 from user_manager import (
     create_user, get_user, get_user_by_email, update_user, list_users,
@@ -169,6 +169,14 @@ def serve_home():
 # happens through a future admin UI (not in this sprint's scope).
 
 MIN_PASSWORD_LENGTH = 8
+
+# ── Role gates (Sprint 4 Stage 3) ─────────────────────────────
+# Pre-computed Depends lists so dependency instances are reused across the
+# route table. Using module constants keeps the decorator lines short and
+# makes the access policy auditable at a glance — grep 'STAFF_ONLY' / 'UPLOADER'
+# to list all gated routes.
+STAFF_ONLY = [Depends(require_role("admin", "super_admin"))]
+UPLOADER   = [Depends(require_role("admin", "analyst"))]
 
 
 class RegisterRequest(BaseModel):
@@ -661,12 +669,12 @@ def api_mark_complete(session_id: str, request: Request):
 # ══════════════════════════════════════════════════════════════
 # KNOWLEDGE BASE — SYSTEMS
 # ══════════════════════════════════════════════════════════════
-@app.get("/systems")
+@app.get("/systems", dependencies=STAFF_ONLY)
 def api_get_systems(request: Request):
     return get_all_systems(org_id=request.state.org_id)
 
 
-@app.post("/systems/add")
+@app.post("/systems/add", dependencies=STAFF_ONLY)
 def api_add_system(req: SystemRequest, request: Request):
     result = add_system(req.system_name.strip(), org_id=request.state.org_id)
     if not result["success"]:
@@ -674,7 +682,7 @@ def api_add_system(req: SystemRequest, request: Request):
     return result
 
 
-@app.post("/systems/add-source")
+@app.post("/systems/add-source", dependencies=STAFF_ONLY)
 def api_add_source(req: SourceRequest, request: Request):
     result = add_source(req.system_name.strip(), req.source_type.strip(), org_id=request.state.org_id)
     if not result["success"]:
@@ -682,7 +690,7 @@ def api_add_source(req: SourceRequest, request: Request):
     return result
  
  
-@app.delete("/systems/{system_name}")
+@app.delete("/systems/{system_name}", dependencies=STAFF_ONLY)
 def api_delete_system(system_name: str, request: Request):
     result = remove_system(system_name, org_id=request.state.org_id)
     if not result["success"]:
@@ -693,7 +701,7 @@ def api_delete_system(system_name: str, request: Request):
 # ══════════════════════════════════════════════════════════════
 # KNOWLEDGE BASE — DOCUMENT UPLOAD
 # ══════════════════════════════════════════════════════════════
-@app.post("/upload")
+@app.post("/upload", dependencies=UPLOADER)
 async def api_upload_document(
     request:     Request,
     file:        UploadFile = File(...),
@@ -765,7 +773,7 @@ def api_list_documents(request: Request):
     return get_all_documents(org_id=request.state.org_id)
 
 
-@app.delete("/documents/{doc_id}")
+@app.delete("/documents/{doc_id}", dependencies=STAFF_ONLY)
 def api_remove_document(doc_id: str, request: Request):
     result = delete_document(doc_id, org_id=request.state.org_id)
     if not result["success"]:
@@ -899,7 +907,7 @@ from observability import (
 )
  
  
-@app.get("/admin/overview")
+@app.get("/admin/overview", dependencies=STAFF_ONLY)
 def api_admin_overview(request: Request):
     """High-level platform stats: session/meeting counts, KB size, cumulative cost."""
     try:
@@ -916,7 +924,7 @@ def api_admin_overview(request: Request):
         }
 
 
-@app.get("/admin/costs/by-stage")
+@app.get("/admin/costs/by-stage", dependencies=STAFF_ONLY)
 def api_admin_costs_by_stage(request: Request):
     """Token usage + cost broken down by pipeline stage, aggregated across all sessions."""
     try:
@@ -925,7 +933,7 @@ def api_admin_costs_by_stage(request: Request):
         raise HTTPException(500, str(e))
 
 
-@app.get("/admin/costs/by-session")
+@app.get("/admin/costs/by-session", dependencies=STAFF_ONLY)
 def api_admin_costs_by_session(request: Request):
     """Per-session cost table, sorted by total cost descending."""
     try:
@@ -934,7 +942,7 @@ def api_admin_costs_by_session(request: Request):
         raise HTTPException(500, str(e))
 
 
-@app.get("/admin/kb/breakdown")
+@app.get("/admin/kb/breakdown", dependencies=STAFF_ONLY)
 def api_admin_kb_breakdown(request: Request):
     """KB stats broken down by System → Source → doc count, chunk count, size."""
     try:
@@ -943,7 +951,7 @@ def api_admin_kb_breakdown(request: Request):
         raise HTTPException(500, str(e))
 
 
-@app.get("/admin/prompts/versions")
+@app.get("/admin/prompts/versions", dependencies=STAFF_ONLY)
 def api_admin_prompt_versions(request: Request):
     """Which prompt versions are in use across recent sessions + meetings."""
     try:
@@ -963,7 +971,7 @@ class ABTestRequest(BaseModel):
     max_cases: int = 8
 
 
-@app.post("/eval/run")
+@app.post("/eval/run", dependencies=STAFF_ONLY)
 def api_run_evaluation(request: Request, use_llm_judge: bool = False, max_cases: Optional[int] = None):
     """
     Run offline evaluation against the golden requirements dataset.
@@ -981,7 +989,7 @@ def api_run_evaluation(request: Request, use_llm_judge: bool = False, max_cases:
         raise HTTPException(500, str(e))
 
 
-@app.post("/eval/ab-test")
+@app.post("/eval/ab-test", dependencies=STAFF_ONLY)
 def api_run_ab_test(req: ABTestRequest, request: Request):
     """
     Capture baseline metrics for A/B prompt version comparison.
@@ -1002,7 +1010,7 @@ def api_run_ab_test(req: ABTestRequest, request: Request):
         raise HTTPException(500, str(e))
 
 
-@app.get("/eval/results")
+@app.get("/eval/results", dependencies=STAFF_ONLY)
 def api_get_eval_results(request: Request):
     """Return the most recent evaluation results from disk."""
     try:
@@ -1077,7 +1085,7 @@ def api_cache_stats():
     return get_cache_stats()
  
  
-@app.delete("/cache")
+@app.delete("/cache", dependencies=STAFF_ONLY)
 def api_clear_cache():
     """
     Clear all cached BABOK results.

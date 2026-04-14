@@ -207,7 +207,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
         return await call_next(request)
 
 
-# ── Dependency helper ─────────────────────────────────────────
+# ── Dependency helpers ────────────────────────────────────────
 def get_current_user(request: Request) -> dict:
     """FastAPI Depends-compatible helper returning the injected claims.
 
@@ -227,6 +227,43 @@ def get_current_user(request: Request) -> dict:
             "AuthMiddleware has not populated request.state. "
             "Ensure app.add_middleware(AuthMiddleware) runs during startup."
         )
+
+
+def require_role(*allowed_roles: str):
+    """Factory returning a FastAPI dependency that enforces role membership.
+
+    Usage — decorator-level (preferred; keeps handler signatures clean):
+        @app.get("/admin/foo", dependencies=[Depends(require_role("admin", "super_admin"))])
+        def api_admin_foo(request: Request): ...
+
+    Behaviour:
+      - Reads role from request.state (populated by AuthMiddleware).
+      - In DEV_MODE the middleware already injected role="super_admin",
+        so any gate that admits super_admin automatically passes in dev.
+        No DEV_MODE special-case needed here.
+      - 403 "Insufficient permissions" if the role is not in allowed_roles.
+      - 401 via RuntimeError only if the middleware was never installed
+        (a deployment bug, not a user-facing error).
+    """
+    from fastapi import HTTPException   # local import — avoid top-level cycle
+
+    allowed = frozenset(allowed_roles)
+
+    def _dep(request: Request) -> None:
+        role = getattr(request.state, "role", None)
+        if role is None:
+            # Middleware should have populated this. If it didn't, the
+            # AuthMiddleware isn't installed — fail loud in logs.
+            raise RuntimeError(
+                "AuthMiddleware has not populated request.state.role. "
+                "Ensure app.add_middleware(AuthMiddleware) runs during startup."
+            )
+        if role not in allowed:
+            raise HTTPException(status_code=403, detail="Insufficient permissions")
+
+    # Give the callable a stable name so FastAPI/OpenAPI schemas look tidy.
+    _dep.__name__ = f"require_role_{'_'.join(sorted(allowed))}"
+    return _dep
 
 
 # ── Smoke test ────────────────────────────────────────────────
