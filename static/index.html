@@ -799,6 +799,13 @@ label{display:block;font-size:11.5px;color:var(--ink3);font-weight:600;margin-bo
         </div>
         <input type="file" id="meetingFileInput" accept=".mp4,.vtt,.txt,.docx" style="display:none" onchange="handleMeetingFileSelect(this)">
       </div>
+      <div id="meetingUploadProgress" style="display:none;margin-bottom:10px;">
+        <div style="font-size:11px;color:var(--ink4);margin-bottom:3px;">Uploading to Azure Blob...</div>
+        <div style="height:6px;border-radius:3px;background:var(--bg3);overflow:hidden;">
+          <div id="meetingUploadBar" style="height:100%;width:0%;background:linear-gradient(90deg,var(--blue),var(--purple));border-radius:3px;transition:width .2s;"></div>
+        </div>
+        <div id="meetingUploadPct" style="font-size:10px;color:var(--ink5);margin-top:2px;font-family:var(--mono);">0%</div>
+      </div>
       <button class="btn btn-gold btn-full" id="processMeetingBtn" onclick="processMeeting()">🔍 Process Meeting</button>
       <div id="meetingStatus" class="status"></div>
     </div>
@@ -1805,152 +1812,313 @@ async function editFromStage(stageNum){
 }
  
 // ═══════════════════════════════════════════════════════════
-// MEETINGS TAB
+// MEETINGS TAB — rewritten for SAS upload + background pipeline
 // ═══════════════════════════════════════════════════════════
 let selectedMeetingFile=null;
 let currentMeetingId=null;
- 
+let meetingPollTimer=null;
+
 function handleMeetingFileSelect(input){if(input.files[0])setMeetingFile(input.files[0]);}
 function handleMeetingDrop(e){e.preventDefault();document.getElementById('meetingUploadZone').classList.remove('drag');if(e.dataTransfer.files[0])setMeetingFile(e.dataTransfer.files[0]);}
-function setMeetingFile(file){selectedMeetingFile=file;document.getElementById('meetingFileName').textContent=`📄 ${file.name} (${(file.size/1024).toFixed(1)} KB)`;document.getElementById('meetingUploadZone').style.borderColor='var(--blue)';}
- 
+function setMeetingFile(file){selectedMeetingFile=file;document.getElementById('meetingFileName').textContent='\uD83D\uDCC4 '+file.name+' ('+(file.size/1024/1024).toFixed(1)+' MB)';document.getElementById('meetingUploadZone').style.borderColor='var(--blue)';}
+
 function populateMeetingDropdowns(){
-  const keys=Object.keys(systems);
-  ['meetingSystem','meetingStoreSystem'].forEach(id=>{
-    const el=document.getElementById(id);if(!el)return;
-    const prev=el.value;el.innerHTML='<option value="">— Select System —</option>';
-    keys.forEach(k=>el.innerHTML+=`<option value="${k}">${k}</option>`);
+  var keys=Object.keys(systems);
+  ['meetingSystem','meetingStoreSystem'].forEach(function(id){
+    var el=document.getElementById(id);if(!el)return;
+    var prev=el.value;
+    el.textContent='';
+    var opt=document.createElement('option');opt.value='';opt.textContent='\u2014 Select System \u2014';el.appendChild(opt);
+    keys.forEach(function(k){var o=document.createElement('option');o.value=k;o.textContent=k;el.appendChild(o);});
     if(prev)el.value=prev;
   });
 }
- 
+
 function loadMeetingStoreSources(){
-  const sys=document.getElementById('meetingStoreSystem').value;
-  const src=document.getElementById('meetingStoreSource');
-  src.innerHTML='<option value="">— Select Source —</option>';
-  if(sys&&systems[sys])systems[sys].forEach(s=>src.innerHTML+=`<option>${s}</option>`);
+  var sys=document.getElementById('meetingStoreSystem').value;
+  var src=document.getElementById('meetingStoreSource');
+  src.textContent='';
+  var defOpt=document.createElement('option');defOpt.value='';defOpt.textContent='\u2014 Select Source \u2014';src.appendChild(defOpt);
+  if(sys&&systems[sys])systems[sys].forEach(function(s){var o=document.createElement('option');o.textContent=s;o.value=s;src.appendChild(o);});
 }
- 
+
+// -- Pipeline visualisation (same look, driven by status poll) --
+var PIPELINE_LABELS=['Init','Upload to Azure','Transcribe / Extract','AI Analysis','Save record','Complete'];
+
 function renderMeetingPipeline(steps){
-  const pipe=document.getElementById('meetingPipeline');
-  pipe.innerHTML=steps.map(s=>`
-    <div style="display:flex;gap:10px;align-items:center;padding:9px 11px;border-radius:8px;margin-bottom:4px;
-      background:${s.status==='active'?'var(--blue-lt)':s.status==='done'?'var(--green-lt)':'transparent'};
-      border:1px solid ${s.status==='active'?'var(--blue-mid)':s.status==='done'?'var(--green-mid)':'var(--border)'};">
-      <div style="width:26px;height:26px;border-radius:7px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;
-        background:${s.status==='done'?'var(--green-lt)':s.status==='active'?'var(--blue)':'var(--bg2)'};
-        border:1.5px solid ${s.status==='done'?'var(--green-mid)':s.status==='active'?'var(--blue)':'var(--border)'};
-        color:${s.status==='done'?'var(--green)':s.status==='active'?'#fff':'var(--ink5)'};">
-        ${s.status==='done'?'✓':s.status==='active'?'<span class="spin" style="margin:0;border-top-color:#fff;border-color:rgba(255,255,255,.3)"></span>':s.n}
-      </div>
-      <span style="font-size:13px;flex:1;color:${s.status==='done'?'var(--ink4)':s.status==='active'?'var(--blue)':'var(--ink5)'};font-weight:${s.status==='active'?'600':'400'};">${s.label}</span>
-      ${s.time?`<span style="font-size:10px;color:${s.status==='done'?'var(--green)':'var(--ink5)'};font-family:var(--mono);font-weight:600;">${s.time}</span>`:''}
-    </div>`).join('');
+  var pipe=document.getElementById('meetingPipeline');
+  pipe.textContent='';
+  steps.forEach(function(s){
+    var row=document.createElement('div');
+    row.style.cssText='display:flex;gap:10px;align-items:center;padding:9px 11px;border-radius:8px;margin-bottom:4px;background:'+(s.status==='active'?'var(--blue-lt)':s.status==='done'?'var(--green-lt)':s.status==='failed'?'var(--red-lt)':'transparent')+';border:1px solid '+(s.status==='active'?'var(--blue-mid)':s.status==='done'?'var(--green-mid)':s.status==='failed'?'var(--red-mid)':'var(--border)')+';';
+    var circle=document.createElement('div');
+    circle.style.cssText='width:26px;height:26px;border-radius:7px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;background:'+(s.status==='done'?'var(--green-lt)':s.status==='active'?'var(--blue)':s.status==='failed'?'var(--red-lt)':'var(--bg2)')+';border:1.5px solid '+(s.status==='done'?'var(--green-mid)':s.status==='active'?'var(--blue)':s.status==='failed'?'var(--red-mid)':'var(--border)')+';color:'+(s.status==='done'?'var(--green)':s.status==='active'?'#fff':s.status==='failed'?'var(--red)':'var(--ink5)')+';';
+    circle.textContent=s.status==='done'?'\u2713':s.status==='failed'?'\u2717':String(s.n);
+    if(s.status==='active'){circle.textContent='';var sp=document.createElement('span');sp.className='spin';sp.style.cssText='margin:0;border-top-color:#fff;border-color:rgba(255,255,255,.3)';circle.appendChild(sp);}
+    var label=document.createElement('span');
+    label.style.cssText='font-size:13px;flex:1;color:'+(s.status==='done'?'var(--ink4)':s.status==='active'?'var(--blue)':s.status==='failed'?'var(--red)':'var(--ink5)')+';font-weight:'+(s.status==='active'||s.status==='failed'?'600':'400')+';';
+    label.textContent=s.label;
+    row.appendChild(circle);row.appendChild(label);pipe.appendChild(row);
+  });
 }
- 
-const PIPELINE_STEPS_TXT=['Read & validate file','Extract text content','AI analysis (GPT-4o-mini)','Parse structured output','Save to Azure Blob','Ready for review'];
-const PIPELINE_STEPS_MP4=['Read & validate file','Send audio → Azure Speech API','Receive transcript','AI analysis (GPT-4o-mini)','Parse structured output','Save to Azure Blob','Ready for review'];
- 
-function getPipelineSteps(filename){const ext=filename.split('.').pop().toLowerCase();return ext==='mp4'?PIPELINE_STEPS_MP4:PIPELINE_STEPS_TXT;}
-function setPipelineActive(steps,activeIdx){return steps.map((label,i)=>({n:i+1,label,status:i<activeIdx?'done':i===activeIdx?'active':'pending',time:i<activeIdx?'✓':''}));}
- 
+
+function buildPipelineState(activeStep,failed){
+  return PIPELINE_LABELS.map(function(label,i){
+    var n=i+1,status='pending';
+    if(failed&&n===activeStep) status='failed';
+    else if(n<activeStep) status='done';
+    else if(n===activeStep) status='active';
+    return {n:n,label:label,status:status};
+  });
+}
+
+// -- Upload file directly to Azure Blob via SAS (XHR for progress) --
+function uploadToSas(file, sasUrl){
+  return new Promise(function(resolve,reject){
+    var progWrap=document.getElementById('meetingUploadProgress');
+    var bar=document.getElementById('meetingUploadBar');
+    var pct=document.getElementById('meetingUploadPct');
+    progWrap.style.display='block';
+    bar.style.width='0%'; pct.textContent='0%';
+
+    var xhr=new XMLHttpRequest();
+    xhr.open('PUT',sasUrl,true);
+    xhr.setRequestHeader('x-ms-blob-type','BlockBlob');
+    xhr.setRequestHeader('Content-Type','application/octet-stream');
+
+    xhr.upload.onprogress=function(e){
+      if(e.lengthComputable){
+        var p=Math.round(e.loaded/e.total*100);
+        bar.style.width=p+'%';pct.textContent=p+'%';
+      }
+    };
+    xhr.onload=function(){
+      if(xhr.status>=200&&xhr.status<300){progWrap.style.display='none';resolve();}
+      else reject(new Error('Blob upload failed: HTTP '+xhr.status));
+    };
+    xhr.onerror=function(){reject(new Error('Network error during blob upload'));};
+    xhr.send(file);
+  });
+}
+
+// -- Main flow: init -> upload -> start -> poll --
 async function processMeeting(){
-  const title=document.getElementById('meetingTitle').value.trim();
-  const sys=document.getElementById('meetingSystem').value;
+  var title=document.getElementById('meetingTitle').value.trim();
+  var sys=document.getElementById('meetingSystem').value;
   if(!title) return showStatus('meetingStatus','err','Enter a meeting title');
   if(!selectedMeetingFile) return showStatus('meetingStatus','err','Select a file to process');
-  const btn=document.getElementById('processMeetingBtn');
-  btn.disabled=true;btn.textContent='Processing...';
+
+  var btn=document.getElementById('processMeetingBtn');
+  btn.disabled=true; btn.textContent='Processing...';
   document.getElementById('meetingResults').style.display='none';
+  document.getElementById('meetingUploadProgress').style.display='none';
   currentMeetingId=null;
-  const steps=getPipelineSteps(selectedMeetingFile.name);
-  const ext=selectedMeetingFile.name.split('.').pop().toLowerCase();
-  renderMeetingPipeline(setPipelineActive(steps,0));
-  showStatus('meetingStatus','load',`<span class="spin"></span> Reading file...`);
-  await new Promise(r=>setTimeout(r,300));
-  if(ext==='mp4'){renderMeetingPipeline(setPipelineActive(steps,1));showStatus('meetingStatus','load','<span class="spin"></span> Sending audio to Azure Speech API — this may take 30–60s for long recordings...');await new Promise(r=>setTimeout(r,400));}
-  const form=new FormData();
-  form.append('file',selectedMeetingFile);form.append('title',title);form.append('system_name',sys||'');
-  const aiStep=ext==='mp4'?3:2;
-  renderMeetingPipeline(setPipelineActive(steps,aiStep-1));
-  showStatus('meetingStatus','load','<span class="spin"></span> Running AI analysis...');
+  if(meetingPollTimer){clearInterval(meetingPollTimer);meetingPollTimer=null;}
+
+  renderMeetingPipeline(buildPipelineState(1,false));
+  showStatus('meetingStatus','load','<span class="spin"></span> Initialising...');
+
   try{
-    const res=await apiFetch('/meetings/process',{method:'POST',body:form});
-    const data=await res.json();
-    if(!res.ok){showStatus('meetingStatus','err',`❌ ${data.detail||'Processing failed'}`);renderMeetingPipeline(setPipelineActive(steps,-1));btn.disabled=false;btn.textContent='🔍 Process Meeting';return;}
-    renderMeetingPipeline(steps.map((label,i)=>({n:i+1,label,status:'done',time:'✓'})));
-    const meeting=data.meeting;currentMeetingId=meeting.meeting_id;
-    renderMeetingResults(meeting);
-    document.getElementById('meetingResults').style.display='block';
-    showStatus('meetingStatus','ok',`✅ Meeting processed — ${meeting.decisions.length} decisions · ${meeting.action_items.length} actions · ${meeting.open_questions.length} open questions`);
-    if(sys){document.getElementById('meetingStoreSystem').value=sys;loadMeetingStoreSources();}
-    await loadMeetings();
-  }catch(e){showStatus('meetingStatus','err','❌ Network error: '+e.message);renderMeetingPipeline(setPipelineActive(steps,-1));}
-  btn.disabled=false;btn.textContent='🔍 Process Meeting';
+    // Step 1: Init -- get SAS URL
+    var initRes=await apiFetch('/meetings/init',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        filename:selectedMeetingFile.name,
+        size_bytes:selectedMeetingFile.size,
+        title:title,
+        system_name:sys||'',
+      }),
+    });
+    var initData=await initRes.json();
+    if(!initRes.ok){throw new Error(initData.detail||'Init failed');}
+    currentMeetingId=initData.meeting_id;
+
+    // Step 2: Upload file directly to Azure Blob via SAS
+    renderMeetingPipeline(buildPipelineState(2,false));
+    showStatus('meetingStatus','load','<span class="spin"></span> Uploading file to Azure Blob...');
+    await uploadToSas(selectedMeetingFile, initData.sas_upload_url);
+
+    // Step 3: Start background pipeline
+    renderMeetingPipeline(buildPipelineState(3,false));
+    showStatus('meetingStatus','load','<span class="spin"></span> Starting pipeline...');
+    var startRes=await apiFetch('/meetings/start',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({meeting_id:currentMeetingId}),
+    });
+    if(!startRes.ok){var d=await startRes.json();throw new Error((d.detail&&d.detail.message)||d.detail||'Start failed');}
+
+    // Step 4+: Poll for status
+    showStatus('meetingStatus','load','<span class="spin"></span> Processing \u2014 polling for updates...');
+    meetingPollTimer=setInterval(function(){pollMeetingStatus(sys);},5000);
+
+  }catch(e){
+    showStatus('meetingStatus','err','Error: '+e.message);
+    renderMeetingPipeline(buildPipelineState(1,true));
+    btn.disabled=false;btn.textContent='\uD83D\uDD0D Process Meeting';
+  }
 }
- 
+
+async function pollMeetingStatus(systemHint){
+  if(!currentMeetingId) return;
+  try{
+    var res=await apiFetch('/meetings/'+currentMeetingId+'/status');
+    var data=await res.json();
+    if(!res.ok) return;
+
+    renderMeetingPipeline(buildPipelineState(data.current_step, data.status==='failed'));
+
+    if(data.status==='completed'){
+      clearInterval(meetingPollTimer);meetingPollTimer=null;
+      var meeting=data.result;
+      renderMeetingResults(meeting);
+      document.getElementById('meetingResults').style.display='block';
+      showStatus('meetingStatus','ok',
+        '\u2705 Meeting processed \u2014 '+(meeting.decisions||[]).length+' decisions \u00b7 '+
+        (meeting.action_items||[]).length+' actions \u00b7 '+
+        (meeting.open_questions||[]).length+' open questions');
+      if(systemHint){document.getElementById('meetingStoreSystem').value=systemHint;loadMeetingStoreSources();}
+      var btn=document.getElementById('processMeetingBtn');
+      btn.disabled=false;btn.textContent='\uD83D\uDD0D Process Meeting';
+      await loadMeetings();
+    } else if(data.status==='failed'){
+      clearInterval(meetingPollTimer);meetingPollTimer=null;
+      showStatus('meetingStatus','err','Pipeline failed: '+(data.error||data.progress_message||'Unknown error'));
+      var btn2=document.getElementById('processMeetingBtn');
+      btn2.disabled=false;btn2.textContent='\uD83D\uDD0D Process Meeting';
+    } else {
+      showStatus('meetingStatus','load','<span class="spin"></span> '+data.progress_message);
+    }
+  }catch(e){/* network blip -- keep polling */}
+}
+
 function renderMeetingResults(meeting){
-  document.getElementById('meetingSummary').innerHTML=`
-    <div style="font-size:13px;color:var(--ink2);line-height:1.75;margin-bottom:14px;">${meeting.summary}</div>
-    ${meeting.key_topics?.length?`<div style="margin-top:10px;"><div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--ink5);margin-bottom:6px;">Key Topics</div><div>${meeting.key_topics.map(t=>`<span class="story-tag" style="margin:2px">${t}</span>`).join('')}</div></div>`:''}
-    ${meeting.participants?.length?`<div style="margin-top:10px;"><div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--ink5);margin-bottom:6px;">Participants</div><div>${meeting.participants.map(p=>`<span class="pill" style="margin:2px;">👤 ${p}</span>`).join('')}</div></div>`:''}
-    ${meeting.ba_insights?`<div style="margin-top:12px;background:var(--blue-lt);border:1px solid var(--blue-mid);border-radius:8px;padding:10px 13px;"><div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--blue);margin-bottom:4px;">BA Insights</div><div style="font-size:12.5px;color:var(--ink2);">${meeting.ba_insights}</div></div>`:''}`;
-  let dHtml='';
-  if(meeting.decisions?.length){dHtml+=`<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--ink5);margin-bottom:8px;">Decisions</div>`;meeting.decisions.forEach(d=>{dHtml+=`<div style="background:var(--bg);border:1px solid var(--border);border-left:3px solid var(--blue);border-radius:7px;padding:10px 12px;margin-bottom:8px;"><div style="font-size:13px;color:var(--ink1);font-weight:500;margin-bottom:4px;">${d.decision}</div><div style="font-size:11px;color:var(--ink5);">👤 ${d.owner} &nbsp;|&nbsp; ${d.context}</div></div>`;});}
-  if(meeting.action_items?.length){dHtml+=`<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--ink5);margin:14px 0 8px;">Action Items</div>`;meeting.action_items.forEach(a=>{const pc=a.priority==='High'?'var(--red)':a.priority==='Medium'?'var(--amber)':'var(--green)';const pb=a.priority==='High'?'var(--red-lt)':a.priority==='Medium'?'var(--amber-lt)':'var(--green-lt)';const pd=a.priority==='High'?'var(--red-mid)':a.priority==='Medium'?'var(--border)':'var(--green-mid)';dHtml+=`<div style="background:var(--bg);border:1px solid var(--border);border-radius:7px;padding:10px 12px;margin-bottom:8px;display:flex;gap:10px;align-items:flex-start;"><span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:5px;background:${pb};color:${pc};border:1px solid ${pd};flex-shrink:0;margin-top:2px;">${a.priority}</span><div style="flex:1;"><div style="font-size:13px;color:var(--ink1);font-weight:500;">${a.action}</div><div style="font-size:11px;color:var(--ink5);margin-top:3px;">👤 ${a.owner} &nbsp;|&nbsp; 📅 ${a.due_date}</div></div></div>`;});}
-  if(!dHtml)dHtml='<div class="empty-state">No decisions or actions extracted.</div>';
-  document.getElementById('meetingDecisions').innerHTML=dHtml;
-  let gHtml='';
-  if(meeting.open_questions?.length){meeting.open_questions.forEach(q=>{gHtml+=`<div style="background:var(--bg);border:1px solid var(--border);border-left:3px solid var(--amber);border-radius:7px;padding:10px 12px;margin-bottom:8px;"><div style="font-size:13px;color:var(--ink1);font-weight:500;margin-bottom:4px;">${q.question}</div><div style="font-size:11px;color:var(--ink5);">Directed to: ${q.directed_to}</div>${q.impact?`<div style="font-size:11px;color:var(--amber);margin-top:3px;">Impact: ${q.impact}</div>`:''}</div>`;});}
-  else gHtml='<div class="empty-state" style="color:var(--green);">✅ No open questions — meeting was comprehensive!</div>';
-  document.getElementById('meetingGaps').innerHTML=gHtml;
+  var sumEl=document.getElementById('meetingSummary');
+  sumEl.textContent='';
+  var sumDiv=document.createElement('div');
+  sumDiv.style.cssText='font-size:13px;color:var(--ink2);line-height:1.75;margin-bottom:14px;';
+  sumDiv.textContent=meeting.summary||'';
+  sumEl.appendChild(sumDiv);
+  if(meeting.key_topics&&meeting.key_topics.length){
+    var topDiv=document.createElement('div');topDiv.style.marginTop='10px';
+    var topLabel=document.createElement('div');topLabel.style.cssText='font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--ink5);margin-bottom:6px;';topLabel.textContent='Key Topics';topDiv.appendChild(topLabel);
+    meeting.key_topics.forEach(function(t){var sp=document.createElement('span');sp.className='story-tag';sp.style.margin='2px';sp.textContent=t;topDiv.appendChild(sp);});
+    sumEl.appendChild(topDiv);
+  }
+  if(meeting.participants&&meeting.participants.length){
+    var pDiv=document.createElement('div');pDiv.style.marginTop='10px';
+    var pLabel=document.createElement('div');pLabel.style.cssText='font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--ink5);margin-bottom:6px;';pLabel.textContent='Participants';pDiv.appendChild(pLabel);
+    meeting.participants.forEach(function(p){var sp=document.createElement('span');sp.className='pill';sp.style.margin='2px';sp.textContent='\uD83D\uDC64 '+p;pDiv.appendChild(sp);});
+    sumEl.appendChild(pDiv);
+  }
+  if(meeting.ba_insights){
+    var baBox=document.createElement('div');baBox.style.cssText='margin-top:12px;background:var(--blue-lt);border:1px solid var(--blue-mid);border-radius:8px;padding:10px 13px;';
+    var baLabel=document.createElement('div');baLabel.style.cssText='font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--blue);margin-bottom:4px;';baLabel.textContent='BA Insights';
+    var baText=document.createElement('div');baText.style.cssText='font-size:12.5px;color:var(--ink2);';baText.textContent=meeting.ba_insights;
+    baBox.appendChild(baLabel);baBox.appendChild(baText);sumEl.appendChild(baBox);
+  }
+
+  var decEl=document.getElementById('meetingDecisions');decEl.textContent='';
+  if(meeting.decisions&&meeting.decisions.length){
+    var dLabel=document.createElement('div');dLabel.style.cssText='font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--ink5);margin-bottom:8px;';dLabel.textContent='Decisions';decEl.appendChild(dLabel);
+    meeting.decisions.forEach(function(d){
+      var card=document.createElement('div');card.style.cssText='background:var(--bg);border:1px solid var(--border);border-left:3px solid var(--blue);border-radius:7px;padding:10px 12px;margin-bottom:8px;';
+      var t=document.createElement('div');t.style.cssText='font-size:13px;color:var(--ink1);font-weight:500;margin-bottom:4px;';t.textContent=d.decision;
+      var m2=document.createElement('div');m2.style.cssText='font-size:11px;color:var(--ink5);';m2.textContent=d.owner+' | '+d.context;
+      card.appendChild(t);card.appendChild(m2);decEl.appendChild(card);
+    });
+  }
+  if(meeting.action_items&&meeting.action_items.length){
+    var aLabel=document.createElement('div');aLabel.style.cssText='font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--ink5);margin:14px 0 8px;';aLabel.textContent='Action Items';decEl.appendChild(aLabel);
+    meeting.action_items.forEach(function(a){
+      var card=document.createElement('div');card.style.cssText='background:var(--bg);border:1px solid var(--border);border-radius:7px;padding:10px 12px;margin-bottom:8px;display:flex;gap:10px;align-items:flex-start;';
+      var badge=document.createElement('span');badge.style.cssText='font-size:10px;font-weight:700;padding:2px 7px;border-radius:5px;flex-shrink:0;margin-top:2px;';
+      badge.style.color=a.priority==='High'?'var(--red)':a.priority==='Medium'?'var(--amber)':'var(--green)';
+      badge.style.background=a.priority==='High'?'var(--red-lt)':a.priority==='Medium'?'var(--amber-lt)':'var(--green-lt)';
+      badge.textContent=a.priority;
+      var body=document.createElement('div');body.style.flex='1';
+      var t=document.createElement('div');t.style.cssText='font-size:13px;color:var(--ink1);font-weight:500;';t.textContent=a.action;
+      var m3=document.createElement('div');m3.style.cssText='font-size:11px;color:var(--ink5);margin-top:3px;';m3.textContent=a.owner+' | '+a.due_date;
+      body.appendChild(t);body.appendChild(m3);card.appendChild(badge);card.appendChild(body);decEl.appendChild(card);
+    });
+  }
+  if(!decEl.hasChildNodes()){decEl.textContent='No decisions or actions extracted.';}
+
+  var gapEl=document.getElementById('meetingGaps');gapEl.textContent='';
+  if(meeting.open_questions&&meeting.open_questions.length){
+    meeting.open_questions.forEach(function(q){
+      var card=document.createElement('div');card.style.cssText='background:var(--bg);border:1px solid var(--border);border-left:3px solid var(--amber);border-radius:7px;padding:10px 12px;margin-bottom:8px;';
+      var t=document.createElement('div');t.style.cssText='font-size:13px;color:var(--ink1);font-weight:500;margin-bottom:4px;';t.textContent=q.question;
+      var d=document.createElement('div');d.style.cssText='font-size:11px;color:var(--ink5);';d.textContent='Directed to: '+q.directed_to;
+      card.appendChild(t);card.appendChild(d);
+      if(q.impact){var imp=document.createElement('div');imp.style.cssText='font-size:11px;color:var(--amber);margin-top:3px;';imp.textContent='Impact: '+q.impact;card.appendChild(imp);}
+      gapEl.appendChild(card);
+    });
+  } else {
+    var ok=document.createElement('div');ok.className='empty-state';ok.style.color='var(--green)';ok.textContent='\u2705 No open questions \u2014 meeting was comprehensive!';gapEl.appendChild(ok);
+  }
 }
- 
+
 async function storeMeetingToKb(){
   if(!currentMeetingId) return showStatus('meetingStoreStatus','err','No processed meeting to store');
-  const sys=document.getElementById('meetingStoreSystem').value;
-  const src=document.getElementById('meetingStoreSource').value;
+  var sys=document.getElementById('meetingStoreSystem').value;
+  var src=document.getElementById('meetingStoreSource').value;
   if(!sys) return showStatus('meetingStoreStatus','err','Select a system');
   if(!src) return showStatus('meetingStoreStatus','err','Select a source');
   showStatus('meetingStoreStatus','load','<span class="spin"></span> Indexing meeting transcript into Knowledge Base...');
   try{
-    const res=await apiFetch(`/meetings/${currentMeetingId}/store`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({system_name:sys,source_type:src})});
-    const data=await res.json();
-    if(res.ok){showStatus('meetingStoreStatus','ok',`✅ Stored in Knowledge Base — ${sys} → ${src}`);document.querySelector('[onclick="storeMeetingToKb()"]').textContent='✅ Stored in Knowledge Base';document.querySelector('[onclick="storeMeetingToKb()"]').disabled=true;await loadMeetings();}
+    var res=await apiFetch('/meetings/'+currentMeetingId+'/store',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({system_name:sys,source_type:src})});
+    var data=await res.json();
+    if(res.ok){showStatus('meetingStoreStatus','ok','\u2705 Stored in Knowledge Base \u2014 '+sys+' \u2192 '+src);var storeBtn=document.querySelector('[onclick="storeMeetingToKb()"]');if(storeBtn){storeBtn.textContent='\u2705 Stored in Knowledge Base';storeBtn.disabled=true;}await loadMeetings();}
     else showStatus('meetingStoreStatus','err',data.detail||'Store failed');
   }catch(e){showStatus('meetingStoreStatus','err','Network error: '+e.message);}
 }
- 
+
 async function loadMeetings(){
-  const el=document.getElementById('meetingsList');
+  var el=document.getElementById('meetingsList');
   if(!el) return;
   try{
-    const res=await apiFetch('/meetings');
-    const data=await res.json();
-    if(!data.length){el.innerHTML='<div class="empty-state">No meeting recordings processed yet. Upload one above.</div>';return;}
-    el.innerHTML=data.map(m=>`<div class="session-card" onclick="viewMeeting('${m.meeting_id}')">
-      <div class="session-meta">
-        <span style="font-size:11px;font-weight:700;color:var(--blue);background:var(--blue-lt);border:1px solid var(--blue-mid);padding:2px 8px;border-radius:5px;font-family:var(--mono)">${m.file_type.toUpperCase()}</span>
-        ${m.kb_stored?`<span style="font-size:11px;color:var(--green);background:var(--green-lt);border:1px solid var(--green-mid);padding:2px 8px;border-radius:5px;font-weight:600;">✅ In KB</span>`:''}
-        ${m.system_name?`<span style="font-size:11px;color:var(--ink4);">🏢 ${m.system_name}</span>`:''}
-        <span style="font-size:11px;color:var(--ink5);margin-left:auto;">${m.created_at}</span>
-        <span style="font-size:10px;color:var(--ink5);font-family:var(--mono);">ID: ${m.meeting_id}</span>
-      </div>
-      <div style="font-size:13.5px;font-weight:600;color:var(--ink1);margin-bottom:4px;">${m.title}</div>
-      <div class="session-problem">${m.summary_preview}</div>
-    </div>`).join('');
-  }catch(e){el.innerHTML='<div class="empty-state">Error loading meetings: '+e.message+'</div>';}
+    var res=await apiFetch('/meetings');
+    var data=await res.json();
+    if(!data.length){el.textContent='';var empty=document.createElement('div');empty.className='empty-state';empty.textContent='No meeting recordings processed yet. Upload one above.';el.appendChild(empty);return;}
+    el.textContent='';
+    data.forEach(function(m){
+      var card=document.createElement('div');card.className='session-card';card.style.cursor='pointer';
+      card.onclick=function(){viewMeeting(m.meeting_id);};
+      var meta=document.createElement('div');meta.className='session-meta';
+      var typeBadge=document.createElement('span');typeBadge.style.cssText='font-size:11px;font-weight:700;color:var(--blue);background:var(--blue-lt);border:1px solid var(--blue-mid);padding:2px 8px;border-radius:5px;font-family:var(--mono);';typeBadge.textContent=(m.file_type||'').toUpperCase();meta.appendChild(typeBadge);
+      var isPending=m.status&&m.status!=='completed'&&m.status!=='failed';
+      if(isPending){var sb=document.createElement('span');sb.style.cssText='font-size:11px;color:var(--amber);background:var(--amber-lt);border:1px solid var(--border);padding:2px 8px;border-radius:5px;font-weight:600;';sb.textContent='\u23F3 '+m.status;meta.appendChild(sb);}
+      if(m.kb_stored){var kb=document.createElement('span');kb.style.cssText='font-size:11px;color:var(--green);background:var(--green-lt);border:1px solid var(--green-mid);padding:2px 8px;border-radius:5px;font-weight:600;';kb.textContent='\u2705 In KB';meta.appendChild(kb);}
+      if(m.system_name){var sn=document.createElement('span');sn.style.cssText='font-size:11px;color:var(--ink4);';sn.textContent='\uD83C\uDFE2 '+m.system_name;meta.appendChild(sn);}
+      var dt=document.createElement('span');dt.style.cssText='font-size:11px;color:var(--ink5);margin-left:auto;';dt.textContent=m.created_at;meta.appendChild(dt);
+      var idSpan=document.createElement('span');idSpan.style.cssText='font-size:10px;color:var(--ink5);font-family:var(--mono);';idSpan.textContent='ID: '+m.meeting_id;meta.appendChild(idSpan);
+      var titleDiv=document.createElement('div');titleDiv.style.cssText='font-size:13.5px;font-weight:600;color:var(--ink1);margin-bottom:4px;';titleDiv.textContent=m.title;
+      var sumDiv=document.createElement('div');sumDiv.className='session-problem';sumDiv.textContent=m.summary_preview||'';
+      card.appendChild(meta);card.appendChild(titleDiv);card.appendChild(sumDiv);el.appendChild(card);
+    });
+  }catch(e){el.textContent='';var errDiv=document.createElement('div');errDiv.className='empty-state';errDiv.textContent='Error loading meetings: '+e.message;el.appendChild(errDiv);}
 }
- 
+
 async function viewMeeting(meetingId){
   try{
-    const res=await apiFetch(`/meetings/${meetingId}`);
-    const meeting=await res.json();
+    var res=await apiFetch('/meetings/'+meetingId);
+    var meeting=await res.json();
     currentMeetingId=meetingId;
+    // If still processing, start polling
+    if(meeting.status&&meeting.status!=='completed'&&meeting.status!=='failed'){
+      var stepMap={pending:1,transcribing:3,extracting:3,analyzing:4};
+      renderMeetingPipeline(buildPipelineState(stepMap[meeting.status]||1,false));
+      showStatus('meetingStatus','load','<span class="spin"></span> '+(meeting.progress_message||'Processing...'));
+      if(meetingPollTimer)clearInterval(meetingPollTimer);
+      meetingPollTimer=setInterval(function(){pollMeetingStatus('');},5000);
+      return;
+    }
     renderMeetingResults(meeting);
     document.getElementById('meetingResults').style.display='block';
-    if(meeting.kb_stored){document.getElementById('meetingStoreSystem').value=meeting.kb_system_name||'';loadMeetingStoreSources();showStatus('meetingStoreStatus','ok',`✅ Already stored: ${meeting.kb_system_name} → ${meeting.kb_source_type}`);const storeBtn=document.querySelector('[onclick="storeMeetingToKb()"]');if(storeBtn){storeBtn.textContent='✅ Already in Knowledge Base';storeBtn.disabled=true;}}
-    else{const storeBtn=document.querySelector('[onclick="storeMeetingToKb()"]');if(storeBtn){storeBtn.textContent='💾 Approve & Store in Knowledge Base';storeBtn.disabled=false;}showStatus('meetingStoreStatus','','');}
+    if(meeting.kb_stored){document.getElementById('meetingStoreSystem').value=meeting.kb_system_name||'';loadMeetingStoreSources();showStatus('meetingStoreStatus','ok','\u2705 Already stored: '+meeting.kb_system_name+' \u2192 '+meeting.kb_source_type);var storeBtn=document.querySelector('[onclick="storeMeetingToKb()"]');if(storeBtn){storeBtn.textContent='\u2705 Already in Knowledge Base';storeBtn.disabled=true;}}
+    else{var storeBtn2=document.querySelector('[onclick="storeMeetingToKb()"]');if(storeBtn2){storeBtn2.textContent='\uD83D\uDCBE Approve & Store in Knowledge Base';storeBtn2.disabled=false;}showStatus('meetingStoreStatus','','');}
     document.getElementById('meetingResults').scrollIntoView({behavior:'smooth',block:'start'});
   }catch(e){alert('Error loading meeting: '+e.message);}
 }

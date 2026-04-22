@@ -2,27 +2,35 @@
 # Feature #4 — Meeting Recording Processor
 # Phase 2 Sprint 2 (A8 step 3) — org_id tenancy for meetings.
 #
-# WHAT IT DOES:
-#   1. Accepts .txt, .vtt, .docx (transcript) OR .mp4 (audio/video)
-#   2. Extracts text:
-#      - .txt  → direct read
-#      - .vtt  → parse WebVTT format (strips timestamps, keeps speaker text)
-#      - .docx → python-docx paragraph extraction
-#      - .mp4  → Azure AI Speech Batch Transcription API
-#   3. AI analysis via GPT-4o-mini → summary, decisions, actions, gaps, topics
-#   4. Saves meeting record to Azure Blob Storage (meetings container)
-#   5. On human approval → indexes into KB via load_and_index_document
+# ARCHITECTURE (rewritten for large-file support):
+#   The meetings pipeline is decomposed into three HTTP transactions:
+#     1. POST /meetings/init   → creates record, returns write-SAS URL
+#     2. Browser PUTs file directly to Azure Blob via SAS (never touches FastAPI)
+#     3. POST /meetings/start  → spawns BackgroundTask for the pipeline
+#   The pipeline runs off the HTTP path and updates the meeting record after
+#   each step. The browser polls GET /meetings/{id}/status every 5s.
+#
+# STATUS LIFECYCLE (locked strings, used verbatim in backend + frontend):
+#   pending → transcribing|extracting → analyzing → completed
+#   Any step can transition to "failed" on exception.
+#   "uploading" is browser-side only, never persisted.
+#
+# TEXT EXTRACTION:
+#   .txt  → direct read
+#   .vtt  → parse WebVTT format (strips timestamps, keeps speaker text)
+#   .docx → python-docx paragraph extraction
+#   .mp4  → Azure AI Speech Batch Transcription API (unchanged engine)
 #
 # STORAGE PATTERN (Sprint 2):
-#   Container: "meetings"
+#   Container: "meetings"           — meeting JSON records
+#   Container: "meetings-audio-temp" — uploaded files (browser → SAS → blob)
 #   Blob name: "{org_id}/{meeting_id}.json"
-#   Legacy Phase 1 blobs live at root ("{meeting_id}.json") and are still
-#   readable via a read-through fallback in load_meeting / list_meetings.
+#   Legacy Phase 1 blobs live at root and are still readable via fallback.
 #
-# AZURE BLOB CONTAINERS:
-#   sessions  → analysis sessions (Sprint 1 org-prefixed)
-#   meetings  → meeting records   (Sprint 2 org-prefixed, this file)
-#   documents → document registry (Sprint 2 per-org file, see document_registry.py)
+# FUTURE SWAP:
+#   run_meeting_pipeline() is a standalone sync function. To move to an
+#   Azure Queue + Function worker, import and call it from the Function —
+#   no FastAPI dependency, no async gymnastics.
  
 import os
 import sys
@@ -59,11 +67,37 @@ MEETINGS_CONTAINER      = "meetings"
 AZURE_SPEECH_KEY        = os.environ.get("AZURE_SPEECH_KEY")
 AZURE_SPEECH_REGION     = os.environ.get("AZURE_SPEECH_REGION", "eastus")
 AZURE_AUDIO_TEMP        = "meetings-audio-temp"   # Temp blob container for batch jobs
- 
+
+ALLOWED_EXTENSIONS = {".txt", ".vtt", ".docx", ".mp4"}
+
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
  
  
-# ── Azure Blob Helpers (same pattern as session_manager.py) ────
+# ── Azure Blob Helpers ─────────────────────────────────────────
+
+def _parse_account_parts():
+    """Extract AccountName and AccountKey from the connection string."""
+    conn_parts = {
+        kv.split("=", 1)[0]: kv.split("=", 1)[1]
+        for kv in AZURE_CONNECTION_STRING.split(";")
+        if "=" in kv
+    }
+    return conn_parts.get("AccountName", ""), conn_parts.get("AccountKey", "")
+
+
+def _get_temp_container():
+    """Return the meetings-audio-temp container client, creating if needed."""
+    if not AZURE_CONNECTION_STRING:
+        raise EnvironmentError("AZURE_STORAGE_CONNECTION_STRING is not set.")
+    blob_service = BlobServiceClient.from_connection_string(AZURE_CONNECTION_STRING)
+    container = blob_service.get_container_client(AZURE_AUDIO_TEMP)
+    try:
+        container.create_container()
+    except Exception:
+        pass
+    return container
+
+
 def _get_meetings_container():
     """Connect to Azure Blob Storage and return the meetings container."""
     if not AZURE_CONNECTION_STRING:
@@ -154,6 +188,7 @@ def list_meetings(org_id: str = None) -> list:
             meetings.append({
                 "meeting_id":   m["meeting_id"],
                 "title":        m["title"],
+                "status":       m.get("status", "completed"),  # legacy meetings lack status
                 "system_name":  m.get("system_name", ""),
                 "file_type":    m.get("file_type", ""),
                 "file_size_kb": m.get("file_size_kb", 0),
@@ -245,384 +280,499 @@ def _extract_docx(file_path: str) -> str:
     return "\n".join(lines)
  
  
-def _extract_mp4(file_path: str) -> str:
+def _extract_text_from_blob(blob_name: str) -> str:
+    """Download a non-MP4 file from temp blob and extract text.
+
+    For .txt/.vtt/.docx files the blob is small enough to download into a
+    temp file and route through the existing extractors.
     """
-    Transcribe MP4 audio using Azure AI Speech Batch Transcription API.
- 
-    WHY BATCH TRANSCRIPTION (not SDK streaming or OpenAI Whisper):
-    ─────────────────────────────────────────────────────────────────
-    - Any file length   → enterprise meetings are 30–90 min (Whisper caps at ~25MB)
-    - Speaker labels    → "Speaker 1: ..." lines, critical for BA meeting notes
-    - Data residency    → audio never leaves your Azure tenant (FERPA/compliance ready)
-    - Cost              → $0.017/min vs $0.006/min for Whisper, but covered by Azure credits
-    - 5 hrs/month FREE  → more than enough for typical BA team usage
- 
-    FLOW:
-    ─────
-    1. Upload MP4  → Azure Blob (meetings-audio-temp container)
-    2. Get SAS URL → time-limited read URL for the batch job
-    3. Submit job  → POST to Azure Speech batch transcription REST API
-    4. Poll status → typically ~1 min per 10 min of audio
-    5. Get results → download JSON, parse speaker-labelled phrases
-    6. Cleanup     → delete temp blob + batch job
- 
-    ENV VARS REQUIRED:
-    ──────────────────
-    AZURE_SPEECH_KEY    — from Azure Portal → Speech resource → Keys and Endpoint
-    AZURE_SPEECH_REGION — e.g. "eastus" (must match your Speech resource region)
+    container = _get_temp_container()
+    blob      = container.get_blob_client(blob_name)
+    ext       = os.path.splitext(blob_name)[1].lower()
+
+    tmp = tempfile.NamedTemporaryFile(delete=False, suffix=ext)
+    try:
+        data = blob.download_blob().readall()
+        tmp.write(data)
+        tmp.flush()
+        tmp.close()
+
+        if ext == ".txt":
+            return _extract_txt(tmp.name)
+        elif ext == ".vtt":
+            return _extract_vtt(tmp.name)
+        elif ext == ".docx":
+            return _extract_docx(tmp.name)
+        else:
+            raise ValueError(f"Unsupported text file type: '{ext}'")
+    finally:
+        if os.path.exists(tmp.name):
+            os.remove(tmp.name)
+
+
+def _transcribe_from_blob(blob_name: str) -> str:
+    """Transcribe an MP4 already in meetings-audio-temp via Azure Speech.
+
+    This is the refactored _extract_mp4. The browser uploaded the file
+    directly to blob via SAS, so the local-file-upload step is gone.
+    Steps:
+      1. Generate a READ SAS for the existing blob
+      2. Submit Azure Speech batch transcription job
+      3. Poll until Succeeded / Failed
+      4. Download + parse speaker-labelled transcript
+      5. Best-effort cleanup of the batch job record
+    Temp blob cleanup is handled by run_meeting_pipeline's finally block.
     """
     if not AZURE_SPEECH_KEY:
         raise EnvironmentError(
-            "❌ AZURE_SPEECH_KEY is not set!\n"
-            "   Get it from: Azure Portal → your Speech resource → Keys and Endpoint\n"
-            "   On your laptop: add to .env\n"
-            "   On Azure App Service: add to Configuration → App Settings"
+            "AZURE_SPEECH_KEY is not set. "
+            "Get it from: Azure Portal → Speech resource → Keys and Endpoint."
         )
-    if not AZURE_CONNECTION_STRING:
-        raise EnvironmentError("AZURE_STORAGE_CONNECTION_STRING is not set!")
- 
-    base_url = f"https://{AZURE_SPEECH_REGION}.api.cognitive.microsoft.com/speechtotext/v3.2"
-    headers  = {
-        "Ocp-Apim-Subscription-Key": AZURE_SPEECH_KEY,
-        "Content-Type":              "application/json"
-    }
- 
-    # ── Step 1: Upload MP4 to Azure Blob (temp container) ───────
-    print("   ☁️  Uploading audio to Azure Blob (temp)...")
-    blob_service   = BlobServiceClient.from_connection_string(AZURE_CONNECTION_STRING)
-    temp_container = blob_service.get_container_client(AZURE_AUDIO_TEMP)
-    try:
-        temp_container.create_container()
-    except Exception:
-        pass  # Already exists — fine
- 
-    blob_name = f"temp_{uuid.uuid4().hex}.mp4"
-    with open(file_path, "rb") as f:
-        temp_container.upload_blob(name=blob_name, data=f, overwrite=True)
-    print(f"   ✅ Uploaded (blob: {blob_name})")
- 
-    # ── Step 2: Generate SAS URL (2-hour window) ─────────────────
-    # Parse account name + key from connection string
-    # Format: "DefaultEndpointsProtocol=https;AccountName=xxx;AccountKey=yyy;..."
-    conn_parts   = {
-        kv.split("=", 1)[0]: kv.split("=", 1)[1]
-        for kv in AZURE_CONNECTION_STRING.split(";")
-        if "=" in kv
-    }
-    account_name = conn_parts.get("AccountName", "")
-    account_key  = conn_parts.get("AccountKey", "")
- 
+
+    account_name, account_key = _parse_account_parts()
+
+    # Read SAS for the already-uploaded blob
     sas_token = generate_blob_sas(
         account_name=account_name,
         container_name=AZURE_AUDIO_TEMP,
         blob_name=blob_name,
         account_key=account_key,
         permission=BlobSasPermissions(read=True),
-        expiry=datetime.utcnow() + timedelta(hours=2)
+        expiry=datetime.utcnow() + timedelta(hours=2),
     )
     audio_url = (
         f"https://{account_name}.blob.core.windows.net"
         f"/{AZURE_AUDIO_TEMP}/{blob_name}?{sas_token}"
     )
- 
-    transcript = ""
- 
-    try:
-        # ── Step 3: Submit batch transcription job ───────────────
-        print("   🎙️  Submitting batch transcription job to Azure Speech...")
- 
-        job_payload = {
-            "contentUrls": [audio_url],
-            "locale":      "en-US",
-            "displayName": f"coanalytica_{uuid.uuid4().hex[:8]}",
-            "properties": {
-                "wordLevelTimestampsEnabled": False,
-                "diarizationEnabled":         True,   # Speaker 1 / Speaker 2 labels
-                "punctuationMode":            "DictatedAndAutomatic",
-                "profanityFilterMode":        "None",
-            }
-        }
- 
-        create_res = requests.post(
-            f"{base_url}/transcriptions",
-            headers=headers,
-            json=job_payload,
-            timeout=30
+
+    base_url = f"https://{AZURE_SPEECH_REGION}.api.cognitive.microsoft.com/speechtotext/v3.2"
+    headers  = {
+        "Ocp-Apim-Subscription-Key": AZURE_SPEECH_KEY,
+        "Content-Type":              "application/json",
+    }
+
+    # Submit batch transcription job
+    print("   Submitting batch transcription job to Azure Speech...")
+    job_payload = {
+        "contentUrls": [audio_url],
+        "locale":      "en-US",
+        "displayName": f"coanalytica_{uuid.uuid4().hex[:8]}",
+        "properties": {
+            "wordLevelTimestampsEnabled": False,
+            "diarizationEnabled":         True,
+            "punctuationMode":            "DictatedAndAutomatic",
+            "profanityFilterMode":        "None",
+        },
+    }
+
+    create_res = requests.post(
+        f"{base_url}/transcriptions",
+        headers=headers,
+        json=job_payload,
+        timeout=30,
+    )
+    if create_res.status_code not in (200, 201):
+        raise RuntimeError(
+            f"Azure Speech API error {create_res.status_code}: "
+            f"{create_res.text[:400]}"
         )
- 
-        if create_res.status_code not in (200, 201):
+
+    transcription_url = create_res.json()["self"]
+    print(f"   Job submitted — polling for completion...")
+
+    # Poll until Succeeded or Failed
+    max_wait = 7200
+    interval = 10
+    elapsed  = 0
+
+    while elapsed < max_wait:
+        time.sleep(interval)
+        elapsed += interval
+
+        status_res  = requests.get(transcription_url, headers=headers, timeout=30)
+        status_res.raise_for_status()
+        status_data = status_res.json()
+        status      = status_data.get("status", "Unknown")
+
+        print(f"   [{elapsed:4d}s] Status: {status}")
+
+        if status == "Succeeded":
+            break
+        elif status == "Failed":
+            err = status_data.get("properties", {}).get("error", {})
             raise RuntimeError(
-                f"Azure Speech API error {create_res.status_code}: "
-                f"{create_res.text[:400]}"
+                f"Azure Speech transcription failed: "
+                f"{err.get('message', 'Unknown error')} "
+                f"(code: {err.get('code', 'N/A')})"
             )
- 
-        transcription_url = create_res.json()["self"]
-        print(f"   ✅ Job submitted — polling for completion...")
- 
-        # ── Step 4: Poll until Succeeded or Failed ───────────────
-        # Typical speed: ~1 min processing per 10 min of audio
-        max_wait  = 7200   # 2 hour absolute timeout
-        interval  = 10     # poll every 10 seconds
-        elapsed   = 0
- 
-        while elapsed < max_wait:
-            time.sleep(interval)
-            elapsed += interval
- 
-            status_res  = requests.get(transcription_url, headers=headers, timeout=30)
-            status_res.raise_for_status()
-            status_data = status_res.json()
-            status      = status_data.get("status", "Unknown")
- 
-            print(f"   ⏳ [{elapsed:4d}s] Status: {status}")
- 
-            if status == "Succeeded":
-                break
-            elif status == "Failed":
-                err = status_data.get("properties", {}).get("error", {})
-                raise RuntimeError(
-                    f"Azure Speech transcription failed: "
-                    f"{err.get('message', 'Unknown error')} "
-                    f"(code: {err.get('code', 'N/A')})"
-                )
-            # "Running" / "NotStarted" → keep polling
- 
-        else:
-            raise TimeoutError(
-                f"Azure Speech transcription timed out after {max_wait}s. "
-                "Try a shorter recording or increase the timeout."
-            )
- 
-        # ── Step 5: Download and parse transcript ────────────────
-        files_res = requests.get(
-            f"{transcription_url}/files",
-            headers=headers,
-            timeout=30
-        )
-        files_res.raise_for_status()
-        files = files_res.json().get("values", [])
- 
-        # Find the transcription output file (not the report)
-        transcript_file = next(
-            (f for f in files if f.get("kind") == "Transcription"),
-            None
-        )
- 
-        if not transcript_file:
-            raise ValueError(
-                "No transcription output file found in Azure batch results. "
-                "The job may have succeeded with no recognized speech."
-            )
- 
-        content_url = transcript_file["links"]["contentUrl"]
-        content_res = requests.get(content_url, timeout=60)
-        content_res.raise_for_status()
-        content     = content_res.json()
- 
-        # Parse phrases — include speaker label if diarization worked
-        # Each phrase has: speaker (int), nBest[0].display (string)
-        phrases = []
-        for phrase in content.get("recognizedPhrases", []):
-            best = phrase.get("nBest", [{}])[0]
-            text = best.get("display", "").strip()
-            if not text:
-                continue
-            speaker = phrase.get("speaker")
-            if speaker is not None:
-                phrases.append(f"Speaker {speaker}: {text}")
-            else:
-                phrases.append(text)
- 
-        if not phrases:
-            raise ValueError(
-                "Azure Speech returned zero recognized phrases. "
-                "Check that the audio file contains clear speech."
-            )
- 
-        transcript = "\n".join(phrases)
-        print(
-            f"   ✅ Transcription complete — "
-            f"{len(transcript)} chars, {len(phrases)} phrases"
-        )
- 
-        # Best-effort cleanup of the batch job record
-        try:
-            requests.delete(transcription_url, headers=headers, timeout=30)
-        except Exception:
-            pass
- 
-    finally:
-        # ── Step 6: Always delete the temp audio blob ────────────
-        # This runs whether transcription succeeded or failed
-        try:
-            temp_container.delete_blob(blob_name)
-            print("   🗑️  Temp audio blob deleted")
-        except Exception:
-            pass  # Best effort — blob will expire anyway
- 
-    return transcript
- 
- 
-def extract_text_from_file(file_path: str, ext: str) -> str:
-    """
-    Route to the correct extractor based on file extension.
-    Returns the full plain-text transcript/content.
-    """
-    ext = ext.lower()
-    if ext == ".txt":
-        return _extract_txt(file_path)
-    elif ext == ".vtt":
-        return _extract_vtt(file_path)
-    elif ext == ".docx":
-        return _extract_docx(file_path)
-    elif ext == ".mp4":
-        return _extract_mp4(file_path)   # → Azure Batch Transcription
     else:
-        raise ValueError(f"Unsupported file type: '{ext}'. Use .txt, .vtt, .docx, or .mp4")
- 
- 
-# ── AI Analysis Prompt ──────────────────────────────────────────
- 
-# Prompt loaded from prompts.json via get_prompt("meetings", "analysis")
- 
- 
-# ── Core Processing Function ────────────────────────────────────
- 
-def process_meeting(
-    title:        str,
-    system_name:  str,
-    file_path:    str,
-    filename:     str,
-    file_size_kb: float,
-    org_id:       str = None
-) -> dict:
-    """
-    Full pipeline:
-      1. Extract text from file (txt/vtt/docx/mp4)
-      2. AI analysis via GPT-4o-mini
-      3. Save meeting record to Azure Blob Storage under its org_id prefix
-      4. Return meeting record
-
-    org_id defaults to 'default' via _resolve_org_id. Phase 1 callers that
-    don't pass org_id continue to work; Sprint 3 auth will populate it.
-
-    Does NOT store to KB — that's a separate human-approval step.
-    """
-    org_id     = _resolve_org_id(org_id)
-    meeting_id = str(uuid.uuid4())[:8]
-    ext        = os.path.splitext(filename)[1].lower()
- 
-    print(f"\n📋 Processing meeting: '{title}' (ID: {meeting_id})")
-    print(f"   File: {filename} ({file_size_kb} KB, type: {ext})")
- 
-    # ── Step 1: Extract text ──────────────────────────────────
-    print(f"📄 Step 1/2: Extracting text from {ext} file...")
-    transcript = extract_text_from_file(file_path, ext)
- 
-    if not transcript.strip():
-        raise ValueError(
-            f"No text could be extracted from '{filename}'. "
-            "Please check the file has content."
+        raise TimeoutError(
+            f"Azure Speech transcription timed out after {max_wait}s. "
+            "Try a shorter recording or increase the timeout."
         )
- 
-    print(f"   Extracted {len(transcript)} characters of text")
- 
-    # Truncate very long transcripts to stay within GPT token limits
-    # ~12,000 chars ≈ 3,000 tokens — safe for gpt-4o-mini context
+
+    # Download and parse transcript
+    files_res = requests.get(
+        f"{transcription_url}/files", headers=headers, timeout=30,
+    )
+    files_res.raise_for_status()
+    files = files_res.json().get("values", [])
+
+    transcript_file = next(
+        (f for f in files if f.get("kind") == "Transcription"), None,
+    )
+    if not transcript_file:
+        raise ValueError(
+            "No transcription output file found in Azure batch results."
+        )
+
+    content_url = transcript_file["links"]["contentUrl"]
+    content_res = requests.get(content_url, timeout=60)
+    content_res.raise_for_status()
+    content     = content_res.json()
+
+    phrases = []
+    for phrase in content.get("recognizedPhrases", []):
+        best = phrase.get("nBest", [{}])[0]
+        text = best.get("display", "").strip()
+        if not text:
+            continue
+        speaker = phrase.get("speaker")
+        if speaker is not None:
+            phrases.append(f"Speaker {speaker}: {text}")
+        else:
+            phrases.append(text)
+
+    if not phrases:
+        raise ValueError(
+            "Azure Speech returned zero recognized phrases. "
+            "Check that the audio file contains clear speech."
+        )
+
+    transcript = "\n".join(phrases)
+    print(f"   Transcription complete — {len(transcript)} chars, {len(phrases)} phrases")
+
+    # Best-effort cleanup of the batch job record (not the blob)
+    try:
+        requests.delete(transcription_url, headers=headers, timeout=30)
+    except Exception:
+        pass
+
+    return transcript
+
+
+# ── AI Analysis (extracted from old process_meeting) ───────────
+
+def _run_ai_analysis(title: str, system_name: str, transcript: str) -> tuple:
+    """Run GPT-4o-mini analysis on a transcript.
+
+    Returns (analysis_dict, prompt_ver, input_tokens, output_tokens, cost).
+    """
+    # Truncate to stay within GPT token limits (~12k chars ≈ 3k tokens)
     transcript_for_ai = transcript[:12000]
     if len(transcript) > 12000:
         transcript_for_ai += "\n\n[Transcript truncated for processing — full text stored]"
-        print(f"   ⚠️ Truncated to 12,000 chars for AI (full text saved)")
- 
-    # ── Step 2: AI Analysis ───────────────────────────────────
+
     prompt_cfg = get_prompt("meetings", "analysis")
     model_cfg  = get_model_config("meetings", "analysis")
     prompt_ver = get_prompt_version("meetings", "analysis")
-    print(f"🧠 Step 2/2: AI analysis ({model_cfg['model']}, prompt v{prompt_ver})...")
- 
+    print(f"   AI analysis ({model_cfg['model']}, prompt v{prompt_ver})...")
+
     response = client.chat.completions.create(
         model=model_cfg["model"],
         messages=[
-            {
-                "role": "system",
-                "content": prompt_cfg["system"]
-            },
+            {"role": "system", "content": prompt_cfg["system"]},
             {
                 "role": "user",
                 "content": prompt_cfg["user_template"].format(
                     title=title,
                     system_name=system_name or "Not specified",
-                    transcript=transcript_for_ai
-                )
-            }
+                    transcript=transcript_for_ai,
+                ),
+            },
         ],
         temperature=model_cfg["temperature"],
-        max_tokens=model_cfg["max_tokens"]
+        max_tokens=model_cfg["max_tokens"],
     )
- 
-    raw_response  = response.choices[0].message.content.strip()
+
+    raw = response.choices[0].message.content.strip()
     usage         = response.usage
     input_tokens  = usage.prompt_tokens     if usage else 0
     output_tokens = usage.completion_tokens if usage else 0
     call_cost     = estimate_cost(input_tokens, output_tokens)
-    print(f"   📊 {input_tokens}in/{output_tokens}out tokens | ${call_cost:.6f}")
- 
-    # Strip any accidental markdown fences
-    raw_response = re.sub(r"^```json\s*", "", raw_response)
-    raw_response = re.sub(r"\s*```$",      "", raw_response)
- 
+    print(f"   {input_tokens}in/{output_tokens}out tokens | ${call_cost:.6f}")
+
+    raw = re.sub(r"^```json\s*", "", raw)
+    raw = re.sub(r"\s*```$",      "", raw)
+
     try:
-        analysis = json.loads(raw_response)
+        analysis = json.loads(raw.strip())
     except json.JSONDecodeError as e:
         raise ValueError(
-            f"AI returned invalid JSON: {e}\n"
-            f"Raw response: {raw_response[:500]}"
+            f"AI returned invalid JSON: {e}\nRaw response: {raw[:500]}"
         )
- 
-    print(f"   ✅ AI analysis complete")
-    print(f"   Summary: {analysis.get('summary', '')[:80]}...")
-    print(f"   Decisions:    {len(analysis.get('decisions', []))}")
-    print(f"   Action items: {len(analysis.get('action_items', []))}")
-    print(f"   Open questions: {len(analysis.get('open_questions', []))}")
- 
-    # ── Step 3: Save meeting record ───────────────────────────
+
+    return analysis, prompt_ver, input_tokens, output_tokens, call_cost
+
+
+# ══════════════════════════════════════════════════════════════
+# PUBLIC API — init, pipeline, status
+# ══════════════════════════════════════════════════════════════
+
+def init_meeting(
+    title: str, filename: str, size_bytes: int,
+    system_name: str = "", org_id: str = None,
+) -> dict:
+    """Create a pending meeting record and return a write-SAS URL.
+
+    The browser PUTs the file directly to the SAS URL — file bytes never
+    touch FastAPI. Returns {meeting_id, blob_name, sas_upload_url}.
+    """
+    org_id = _resolve_org_id(org_id)
+    ext    = os.path.splitext(filename)[1].lower()
+    if ext not in ALLOWED_EXTENSIONS:
+        raise ValueError(
+            f"File type '{ext}' not supported. Use: {sorted(ALLOWED_EXTENSIONS)}"
+        )
+
+    meeting_id = uuid.uuid4().hex[:8]
+    blob_name  = f"{meeting_id}_{uuid.uuid4().hex[:6]}{ext}"
+
+    # Generate a WRITE-scoped SAS URL (2-hour expiry)
+    account_name, account_key = _parse_account_parts()
+    _get_temp_container()   # ensure container exists
+
+    sas_token = generate_blob_sas(
+        account_name=account_name,
+        container_name=AZURE_AUDIO_TEMP,
+        blob_name=blob_name,
+        account_key=account_key,
+        permission=BlobSasPermissions(create=True, write=True),
+        expiry=datetime.utcnow() + timedelta(hours=2),
+    )
+    sas_upload_url = (
+        f"https://{account_name}.blob.core.windows.net"
+        f"/{AZURE_AUDIO_TEMP}/{blob_name}?{sas_token}"
+    )
+
+    # Create a minimal meeting record with status="pending"
     meeting = {
-        "meeting_id":    meeting_id,
-        "org_id":        org_id,
-        "title":         title,
-        "system_name":   system_name or "",
-        "filename":      filename,
-        "file_type":     ext,
-        "file_size_kb":  file_size_kb,
-        "created_at":    datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        "updated_at":    datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
- 
-        # Full transcript (stored for KB indexing later)
-        "transcript":    transcript,
- 
-        # AI analysis results
-        "summary":           analysis.get("summary", ""),
-        "key_topics":        analysis.get("key_topics", []),
-        "decisions":         analysis.get("decisions", []),
-        "action_items":      analysis.get("action_items", []),
-        "open_questions":    analysis.get("open_questions", []),
-        "participants":      analysis.get("participants", []),
-        "ba_insights":       analysis.get("ba_insights", ""),
- 
-        # KB storage state
-        "kb_stored":         False,
-        "kb_system_name":    None,
-        "kb_source_type":    None,
-        "kb_document_id":    None,
-        "prompt_version":     prompt_ver,
-        "input_tokens":       input_tokens,
-        "output_tokens":      output_tokens,
-        "estimated_cost_usd": call_cost,
+        "meeting_id":     meeting_id,
+        "org_id":         org_id,
+        "status":         "pending",
+        "title":          title,
+        "system_name":    system_name or "",
+        "filename":       filename,
+        "file_type":      ext,
+        "file_size_kb":   round(size_bytes / 1024, 1),
+        "blob_name":      blob_name,
+        "created_at":     datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "updated_at":     datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "progress_message": "Waiting for file upload...",
+        # These will be populated by the pipeline:
+        "transcript":     "",
+        "summary":        "",
+        "key_topics":     [],
+        "decisions":      [],
+        "action_items":   [],
+        "open_questions": [],
+        "participants":   [],
+        "ba_insights":    "",
+        "kb_stored":      False,
+        "kb_system_name": None,
+        "kb_source_type": None,
+        "kb_document_id": None,
+        "prompt_version": None,
+        "input_tokens":   0,
+        "output_tokens":  0,
+        "estimated_cost_usd": 0.0,
+        "error":          None,
     }
- 
     _save_meeting(meeting)
-    print(f"✅ Meeting record saved (ID: {meeting_id})")
-    return meeting
+    print(f"Meeting init: {meeting_id} ({filename}, {size_bytes} bytes)")
+
+    return {
+        "meeting_id":     meeting_id,
+        "blob_name":      blob_name,
+        "sas_upload_url": sas_upload_url,
+    }
+
+
+def check_blob_exists(blob_name: str) -> bool:
+    """Return True if the blob exists in meetings-audio-temp."""
+    try:
+        container = _get_temp_container()
+        container.get_blob_client(blob_name).get_blob_properties()
+        return True
+    except ResourceNotFoundError:
+        return False
+
+
+def claim_meeting_for_processing(meeting_id: str, org_id: str = None) -> str:
+    """Atomically transition a meeting from "pending" to the first processing status.
+
+    Loads the record, verifies status == "pending", writes the appropriate
+    next status ("transcribing" for MP4, "extracting" for text files),
+    and saves. The persisted status change acts as a lock — a concurrent
+    /meetings/start call will see the non-pending status and 409.
+
+    Returns the claimed status string. Raises ValueError if the meeting
+    is not in "pending" status.
+    """
+    org_id  = _resolve_org_id(org_id)
+    meeting = load_meeting(meeting_id, org_id=org_id)
+
+    if meeting.get("status") != "pending":
+        raise ValueError(
+            f"Meeting is not in 'pending' status (current: {meeting.get('status')})"
+        )
+
+    ext = meeting.get("file_type", "").lower()
+    if ext == ".mp4":
+        claimed_status  = "transcribing"
+        progress_msg    = "Transcribing audio via Azure Speech..."
+    else:
+        claimed_status  = "extracting"
+        progress_msg    = f"Extracting text from {ext} file..."
+
+    meeting["status"]           = claimed_status
+    meeting["progress_message"] = progress_msg
+    _save_meeting(meeting)
+    print(f"Claimed meeting {meeting_id} → {claimed_status}")
+    return claimed_status
+
+
+def run_meeting_pipeline(meeting_id: str, org_id: str = None) -> None:
+    """Background pipeline: transcribe/extract → analyse → save.
+
+    This is a standalone sync function so it can be moved to an Azure
+    Function worker later with no FastAPI dependency. FastAPI's
+    BackgroundTasks runs sync functions in a thread pool automatically.
+
+    IMPORTANT: The caller (POST /meetings/start) has already transitioned
+    the status from "pending" to "transcribing" or "extracting" via
+    claim_meeting_for_processing. This function proceeds from that state —
+    it does NOT re-check or re-set the initial processing status.
+
+    Status transitions persisted to blob after each step:
+      (already set) transcribing|extracting → analyzing → completed
+    On any exception → failed (with error detail).
+    """
+    org_id  = _resolve_org_id(org_id)
+    meeting = load_meeting(meeting_id, org_id=org_id)
+    ext     = meeting.get("file_type", "").lower()
+    blob_name = meeting.get("blob_name", "")
+
+    try:
+        # ── Step 1: Transcription / text extraction ──────────────
+        # Status was already set to "transcribing" or "extracting" by
+        # claim_meeting_for_processing. We only update progress_message.
+        if ext == ".mp4":
+            meeting["progress_message"] = "Transcribing audio via Azure Speech..."
+            _save_meeting(meeting)
+            transcript = _transcribe_from_blob(blob_name)
+        else:
+            meeting["progress_message"] = f"Extracting text from {ext} file..."
+            _save_meeting(meeting)
+            transcript = _extract_text_from_blob(blob_name)
+
+        if not transcript.strip():
+            raise ValueError(f"No text could be extracted from '{meeting['filename']}'.")
+
+        # Clean up temp blob — transcript successfully captured.
+        # After this point, retrying a failed pipeline requires re-upload
+        # (accepted limitation for pilot — the file is no longer available).
+        try:
+            _get_temp_container().delete_blob(blob_name)
+            print(f"   Temp blob deleted after successful extraction")
+        except Exception:
+            pass
+
+        meeting["transcript"] = transcript
+
+        # ── Step 2: AI analysis ──────────────────────────────────
+        meeting["status"]           = "analyzing"
+        meeting["progress_message"] = "Running AI analysis (GPT-4o-mini)..."
+        _save_meeting(meeting)
+
+        analysis, prompt_ver, t_in, t_out, cost = _run_ai_analysis(
+            meeting["title"], meeting["system_name"], transcript,
+        )
+
+        meeting["summary"]           = analysis.get("summary", "")
+        meeting["key_topics"]        = analysis.get("key_topics", [])
+        meeting["decisions"]         = analysis.get("decisions", [])
+        meeting["action_items"]      = analysis.get("action_items", [])
+        meeting["open_questions"]    = analysis.get("open_questions", [])
+        meeting["participants"]      = analysis.get("participants", [])
+        meeting["ba_insights"]       = analysis.get("ba_insights", "")
+        meeting["prompt_version"]    = prompt_ver
+        meeting["input_tokens"]      = t_in
+        meeting["output_tokens"]     = t_out
+        meeting["estimated_cost_usd"] = cost
+
+        # ── Step 3: Complete ─────────────────────────────────────
+        meeting["status"]           = "completed"
+        meeting["progress_message"] = "Processing complete."
+        _save_meeting(meeting)
+
+        print(f"Pipeline complete: {meeting_id} "
+              f"({len(analysis.get('decisions',[]))} decisions, "
+              f"{len(analysis.get('action_items',[]))} actions)")
+
+    except Exception as e:
+        meeting["status"]           = "failed"
+        meeting["progress_message"] = f"Pipeline failed: {str(e)[:300]}"
+        meeting["error"]            = str(e)[:1000]
+        _save_meeting(meeting)
+        print(f"Pipeline FAILED for {meeting_id}: {e}")
+
+    finally:
+        # Safety-net temp blob cleanup. If the try block already deleted it,
+        # this is a harmless no-op. If the try block didn't reach that point
+        # (e.g. transcription itself failed), this prevents orphaned blobs.
+        # Note: retry-after-transcription-failure requires re-upload because
+        # the blob is deleted here. Accepted limitation for pilot.
+        try:
+            _get_temp_container().delete_blob(blob_name)
+        except Exception:
+            pass  # already deleted or never uploaded
+
+
+def get_meeting_status(meeting_id: str, org_id: str = None) -> dict:
+    """Return the current pipeline status for a meeting.
+
+    Used by the browser's 5-second poll loop. The result field is non-null
+    only when status == "completed".
+    """
+    org_id  = _resolve_org_id(org_id)
+    meeting = load_meeting(meeting_id, org_id=org_id)
+    status  = meeting.get("status", "pending")
+    ext     = meeting.get("file_type", "").lower()
+
+    # Step numbers for the frontend pipeline visualisation
+    step_map = {
+        "pending":      1,
+        "transcribing": 3,
+        "extracting":   3,
+        "analyzing":    4,
+        "completed":    6,
+        "failed":       0,
+    }
+
+    result = None
+    if status == "completed":
+        # Return the meeting minus the (potentially large) transcript
+        result = {k: v for k, v in meeting.items() if k != "transcript"}
+
+    return {
+        "status":           status,
+        "current_step":     step_map.get(status, 0),
+        "total_steps":      6,
+        "progress_message": meeting.get("progress_message", ""),
+        "error":            meeting.get("error"),
+        "result":           result,
+    }
  
  
 # ── KB Storage Function ─────────────────────────────────────────

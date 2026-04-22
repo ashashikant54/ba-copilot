@@ -782,67 +782,108 @@ def api_remove_document(doc_id: str, request: Request):
  
  
 # ══════════════════════════════════════════════════════════════
-# MEETINGS — Feature #4
+# MEETINGS — Feature #4 (rewritten for SAS upload + background pipeline)
 # ══════════════════════════════════════════════════════════════
+from starlette.background import BackgroundTasks
 from meeting_module import (
-    process_meeting,
+    init_meeting,
+    check_blob_exists,
+    claim_meeting_for_processing,
+    run_meeting_pipeline,
+    get_meeting_status,
     store_meeting_to_kb,
     load_meeting,
-    list_meetings
+    list_meetings,
 )
- 
-class ProcessMeetingRequest(BaseModel):
+
+
+class InitMeetingRequest(BaseModel):
+    filename:    str
+    size_bytes:  int
     title:       str
-    system_name: Optional[str] = None
- 
+    system_name: Optional[str] = ""
+
+class StartMeetingRequest(BaseModel):
+    meeting_id: str
+
 class StoreMeetingRequest(BaseModel):
     system_name: str
     source_type: str
- 
- 
-@app.post("/meetings/process")
-async def api_process_meeting(
-    request:     Request,
-    file:        UploadFile = File(...),
-    title:       str        = Form(...),
-    system_name: str        = Form(""),
-):
-    org_id = request.state.org_id
-    allowed = [".txt", ".vtt", ".docx", ".mp4"]
-    ext = os.path.splitext(file.filename)[1].lower()
-    if ext not in allowed:
-        raise HTTPException(400, f"File type '{ext}' not supported. Use: {allowed}")
 
-    if not title.strip():
+
+@app.post("/meetings/init")
+def api_init_meeting(req: InitMeetingRequest, request: Request):
+    """Create a pending meeting record and return a write-SAS URL.
+
+    The browser PUTs the file directly to the SAS URL — file bytes
+    never touch FastAPI. Returns {meeting_id, blob_name, sas_upload_url}.
+    """
+    if not req.title.strip():
         raise HTTPException(400, "Meeting title is required")
-
-    file_bytes   = await file.read()
-    file_size_kb = round(len(file_bytes) / 1024, 1)
-
-    tmp = tempfile.NamedTemporaryFile(delete=False, suffix=ext)
+    if req.size_bytes <= 0:
+        raise HTTPException(400, "size_bytes must be positive")
     try:
-        tmp.write(file_bytes)
-        tmp.flush()
-        tmp.close()
-
-        meeting = process_meeting(
-            title=title.strip(),
-            system_name=system_name.strip() if system_name else "",
-            file_path=tmp.name,
-            filename=file.filename,
-            file_size_kb=file_size_kb,
-            org_id=org_id,
+        return init_meeting(
+            title=req.title.strip(),
+            filename=req.filename,
+            size_bytes=req.size_bytes,
+            system_name=(req.system_name or "").strip(),
+            org_id=request.state.org_id,
         )
-
-        return {"success": True, "meeting": meeting}
-
     except ValueError as e:
         raise HTTPException(400, str(e))
-    except Exception as e:
-        raise HTTPException(500, str(e))
-    finally:
-        if os.path.exists(tmp.name):
-            os.remove(tmp.name)
+
+
+@app.post("/meetings/start", status_code=202)
+def api_start_meeting(req: StartMeetingRequest, request: Request,
+                       background_tasks: BackgroundTasks):
+    """Validate blob exists + meeting is pending, claim it, then spawn pipeline.
+
+    Sequence:
+      1. Check the uploaded blob exists in meetings-audio-temp (400 if not).
+      2. Atomically transition status from "pending" to "transcribing" or
+         "extracting" via claim_meeting_for_processing (409 if not pending).
+         The persisted status change acts as a lock — a concurrent call
+         will see non-pending status and get 409.
+      3. Spawn the background pipeline. Returns 202 Accepted immediately.
+    """
+    org_id = request.state.org_id
+    try:
+        meeting = load_meeting(req.meeting_id, org_id=org_id)
+    except FileNotFoundError:
+        raise HTTPException(404, f"Meeting '{req.meeting_id}' not found")
+
+    # 1. Blob existence check — catches incomplete uploads before locking.
+    blob_name = meeting.get("blob_name", "")
+    if not blob_name or not check_blob_exists(blob_name):
+        raise HTTPException(
+            400, "File upload incomplete — please re-upload"
+        )
+
+    # 2. Claim: pending → transcribing|extracting (persisted lock).
+    try:
+        claim_meeting_for_processing(req.meeting_id, org_id)
+    except ValueError:
+        raise HTTPException(
+            409,
+            detail={
+                "message": "Meeting is not in 'pending' status — cannot start",
+                "current_status": meeting.get("status"),
+            },
+        )
+
+    # 3. Spawn pipeline (runs off the HTTP path in a thread pool).
+    background_tasks.add_task(run_meeting_pipeline, req.meeting_id, org_id)
+    return {"meeting_id": req.meeting_id, "message": "Pipeline started"}
+
+
+@app.get("/meetings/{meeting_id}/status")
+def api_meeting_status(meeting_id: str, request: Request):
+    """Return pipeline progress for the browser's 5-second poll loop."""
+    try:
+        return get_meeting_status(meeting_id, org_id=request.state.org_id)
+    except FileNotFoundError:
+        raise HTTPException(404, f"Meeting '{meeting_id}' not found")
 
 
 @app.get("/meetings")
@@ -886,7 +927,7 @@ def api_store_meeting_to_kb(meeting_id: str, req: StoreMeetingRequest, request: 
         )
         return {
             "success": True,
-            "message": f"✅ Meeting indexed into '{req.system_name} → {req.source_type}'",
+            "message": f"Meeting indexed into '{req.system_name} → {req.source_type}'",
             "meeting": meeting
         }
     except ValueError as e:
