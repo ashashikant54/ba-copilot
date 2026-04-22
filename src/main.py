@@ -176,7 +176,7 @@ MIN_PASSWORD_LENGTH = 8
 # makes the access policy auditable at a glance — grep 'STAFF_ONLY' / 'UPLOADER'
 # to list all gated routes.
 STAFF_ONLY = [Depends(require_role("admin", "super_admin"))]
-UPLOADER   = [Depends(require_role("admin", "analyst"))]
+UPLOADER   = [Depends(require_role("admin", "analyst", "super_admin"))]
 
 
 class RegisterRequest(BaseModel):
